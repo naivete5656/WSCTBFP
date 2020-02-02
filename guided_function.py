@@ -1,16 +1,8 @@
 from guided_model import GuidedModel
-import torch
 import torch.utils.data
-import numpy as np
-from PIL import Image
-import cv2
-import matplotlib.pyplot as plt
 from utils import *
-from scipy.io import savemat
 import multiprocessing
 from pathlib import Path
-from datetime import datetime
-import os
 import torch
 from networks import UNet, UNet2, UNet3
 
@@ -20,16 +12,13 @@ multiprocessing.set_start_method("spawn", True)
 def gather_path(paths, mode):
     ori_paths = []
     for path in paths:
-        if "sequ9" in path.name:
-            ori_paths.extend(sorted(path.joinpath(mode).glob("*.tif")))
-        else:
-            ori_paths.extend(sorted(path.joinpath(mode).glob("*.tif")))
+        ori_paths.extend(sorted(path.joinpath(mode).glob("*.tif")))
     return ori_paths
 
 
 class GuideCall(object):
     def __init__(
-        self, input_path, output_path, net, gpu=True, time_late=1, t_or_n=1, seq=None
+            self, input_path, output_path, net, gpu=True, time_late=1, t_or_n=1, seq=None
     ):
         super().__init__()
         self.input_path = input_path
@@ -115,24 +104,24 @@ class GuideCall(object):
 
 if __name__ == "__main__":
     torch.cuda.set_device(0)
-    # time_lates = [1, 3, 5, 10]
-    # time_lates = [10]
-    time_late = 1
-    seq = 9
-    net = UNet3(n_channels=1, n_classes=1, sig=False)
+    time_lates = [1, 5, 9]
+    seqs = [9]
+    for seq in seqs:
+        for time_late in time_lates:
+            net = UNet3(n_channels=1, n_classes=1, sig=False)
 
-    input_path = [Path(f"/home/kazuya/main/correlation_test/images/sequ{seq}")]
+            input_path = [Path(f"/home/kazuya/main/correlation_test/images/sequ{seq}")]
 
-    weight_path = Path(
-        f"/home/kazuya/file_server2/CVPR_tracking/weight/C2C12_9_1/temp.pth"
-    )
+            weight_path = Path(
+                f"/home/kazuya/file_server2/CVPR_tracking/weight/C2C12_9_{time_late}/temp.pth"
+            )
 
-    output_path = Path(f"./output/guid_out/{weight_path.parent.name}/sequ{seq}")
+            output_path = Path(f"./output/guid_out/{weight_path.parent.name}/sequ{seq}")
 
-    net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
-    net.cuda()
+            net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
+            net.cuda()
 
-    bp = GuideCall(
-        input_path, output_path, net, time_late=time_late, t_or_n=1, seq=seq
-    )
-    bp.main()
+            bp = GuideCall(
+                input_path, output_path, net, time_late=time_late, t_or_n=1, seq=seq
+            )
+            bp.main()

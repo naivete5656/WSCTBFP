@@ -159,10 +159,11 @@ class CellImageLoad(RandomCropClass, GT):
 
 class CellImageLoadTest(GT):
     def __init__(
-            self, ori_path, gt_path, crop_size=(512, 512), time_late=1, bg_path=None
+            self, ori_path, gt_path, crop_size=(512, 512), time_late=1, bg_path=None, crop=(500, 300)
     ):
         super().__init__(ori_path, gt_path, crop_size=(512, 512), time_late=1)
         self.bg_paths = bg_path
+        self.crop = (crop[0], crop[0] + 256, crop[1], crop[1] + 256)
 
     def __getitem__(self, data_id):
         img_name = self.ori_paths[data_id]
@@ -183,7 +184,7 @@ class CellImageLoadTest(GT):
 
         # data augumentation
         # top, bottom, left, right = (134, 646, 159, 671)
-        top, bottom, left, right = (500, 756, 300, 556)
+        top, bottom, left, right = self.crop
 
         img = img[top:bottom, left:right]
         img2 = img2[top:bottom, left:right]
@@ -343,12 +344,12 @@ class CellImageProp(object):
         img_name2 = self.ori_paths[data_id + self.time_late]
         img = cv2.imread(str(img_name), -1)
         img = img / 4095
-        img = img[self.crop[0]: self.crop[0] + 256, self.crop[1]: self.crop[1] + 256]
+        img = img[self.crop[0]: self.crop[0] + 512, self.crop[1]: self.crop[1] + 512]
 
         img2 = cv2.imread(str(img_name2), -1)
         img2 = img2 / 4095
         img2 = img2[
-               self.crop[0]: self.crop[0] + 256, self.crop[1]: self.crop[1] + 256
+               self.crop[0]: self.crop[0] + 512, self.crop[1]: self.crop[1] + 512
                ]
 
         img = torch.from_numpy(img.astype(np.float32))

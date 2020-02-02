@@ -1,28 +1,11 @@
-# import ptvsd
-# import time
-# import os
-
-# print("Waiting to attach")
-
-# address = ("0.0.0.0", 3000)
-# ptvsd.enable_attach(address)
-# ptvsd.wait_for_attach()
-
-# time.sleep(2)
-
-# print("attached")
-
 import argparse
 from pathlib import Path
-import torch
 import torch.utils.data
 from utils import CellImageLoadTest
 from networks import *
 import cv2
 import numpy as np
 import multiprocessing
-from scipy.io import loadmat, savemat
-import matplotlib.pyplot as plt
 
 multiprocessing.set_start_method("spawn", True)
 
@@ -30,10 +13,7 @@ multiprocessing.set_start_method("spawn", True)
 def gather_path(train_paths, mode):
     ori_paths = []
     for train_path in train_paths:
-        if "sequ9" in train_path.name:
-            ori_paths.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
-        else:
-            ori_paths.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
+        ori_paths.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
     return ori_paths
 
 
@@ -47,15 +27,19 @@ class Predict(object):
         self.save_path = kwargs["save_path"]
 
         ori_paths = gather_path(kwargs["data_paths"], "ori")[kwargs["start"]:]
-        gt_paths = gather_path(kwargs["data_paths"], "9")[kwargs["start"]:]
+        gt_paths = gather_path(kwargs["data_paths"], "6")[kwargs["start"]:]
+        # if kwargs["seq"] == 10:
+        #     crop_init = (300, 160)
+        # else:
+        #     crop_init = (500, 300)
         if kwargs["mask_path"] is not None:
             bg_paths = gather_path(kwargs["data_paths"], "bg")[kwargs["start"]:]
             data_loader = CellImageLoadTest(
-                ori_paths, gt_paths, time_late=kwargs["time_late"], bg_path=bg_paths
+                ori_paths, gt_paths, time_late=kwargs["time_late"], bg_path=bg_paths, crop=crop_init
             )
         else:
             data_loader = CellImageLoadTest(
-                ori_paths, gt_paths, time_late=kwargs["time_late"]
+                ori_paths, gt_paths, time_late=kwargs["time_late"], crop=crop_init
             )
 
         self.dataset = torch.utils.data.DataLoader(
@@ -165,39 +149,12 @@ class Predict(object):
                     img[:, :1][gb1 == 1] = img_ori[:, :1][gb1 == 1]
                     img[:, 1:][gb2 == 1] = img_ori[:, 1:][gb2 == 1]
 
-                    # x_y = gbs[i][0]
-                    # x, y = np.where(x_y > (0.99 * x_y))
-                    # x = int(x.mean())
-                    # x = min(max(0, x - 20), img_ori.shape[2] - 40)
-                    # y = int(y.mean())
-                    # y = min(max(0, y - 20), img_ori.shape[3] - 40)
-                    # img = bg.clone()
-                    # img[:, :, x - 20 : x + 20, y - 10 : y + 30] = img_ori[
-                    #     :, :, x - 20 : x + 20, y - 10 : y + 30
-                    # ]
-
-                    # x, y = np.where(x_y > (0.99 * x_y))
-                    # x = int(x.mean())
-                    # x = min(max(0, x - 128), img_ori.shape[2] - 256)
-                    # y = int(y.mean())
-                    # y = min(max(0, y - 128), img_ori.shape[3] - 256)
-                    # img_patch = img[:, :, x: x + 256, y: y + 256]
-
-
                     if self.gpu:
                         img = img.cuda()
 
                     pred_img = self.net(img)
                     pred1 = pred_img[0].detach().cpu().clamp(min=0, max=1).numpy()
                     pred2 = pred_img[1].detach().cpu().clamp(min=0, max=1).numpy()
-
-                    # pred1_full = np.zeros((bg.shape[2], bg.shape[3]))
-                    # pred1_full[x: x + 256, y: y + 256] = pred1
-                    # pred2_full = np.zeros((bg.shape[2], bg.shape[3]))
-                    # pred2_full[x: x + 256, y: y + 256] = pred2
-
-                    # pred1_full = pred1[0, 0]
-                    # pred2_full = pred2[0, 0]
 
                     del pred_img
                     torch.cuda.empty_cache()
@@ -274,28 +231,28 @@ class Predict(object):
                 if self.save_path is not None:
                     cv2.imwrite(
                         str(self.save_path / Path(f"ori/{iteration:04d}_1.png")),
-                        ((img / img.max()) * 255)
+                        (img * 255)
                             .cpu()
                             .numpy()
                             .astype(np.uint8)[0, 0, :, :],
                     )
                     cv2.imwrite(
                         str(self.save_path / Path(f"gt/{iteration:04d}_1.png")),
-                        ((target / target.max()) * 255)
+                        (target * 255)
                             .numpy()
                             .astype(np.uint8)[0, 0, :, :],
                     )
 
                     cv2.imwrite(
                         str(self.save_path / Path(f"ori/{iteration:04d}_2.png")),
-                        ((img / img.max()) * 255)
+                        (img * 255)
                             .cpu()
                             .numpy()
                             .astype(np.uint8)[0, 1, :, :],
                     )
                     cv2.imwrite(
                         str(self.save_path / Path(f"pred/{iteration:04d}_1.png")),
-                        ((pred1 / pred1.max()) * 255)
+                        (pred1 * 255)
                             .detach()
                             .cpu()
                             .numpy()
@@ -303,7 +260,7 @@ class Predict(object):
                     )
                     cv2.imwrite(
                         str(self.save_path / Path(f"pred/{iteration:04d}_2.png")),
-                        ((pred2 / pred2.max()) * 255)
+                        (pred2 * 255)
                             .detach()
                             .cpu()
                             .numpy()
@@ -311,7 +268,7 @@ class Predict(object):
                     )
                     cv2.imwrite(
                         str(self.save_path / Path(f"gt/{iteration:04d}_2.png")),
-                        ((target / target.max()) * 255)
+                        (target * 255)
                             .numpy()
                             .astype(np.uint8)[0, 1, :, :],
                     )
@@ -320,54 +277,54 @@ class Predict(object):
 if __name__ == "__main__":
     num = 1
     torch.cuda.set_device(num)
-    seqs = [9, 2, 16, 17, 18]
-    seq = 9
+    # seqs = [9, 2, 16, 17, 18]
+    # seqs = [10, 11, 12, 2, 18]
     time_lates = [1, 5, 9]
-    time_late = 1
-    # for time_late in time_lates:
-    # for seq in seqs:
-    net = UNet3(n_channels=1, n_classes=1, sig=False)
+    for time_late in time_lates:
+        for seq in [9]:
+            net = UNet3(n_channels=1, n_classes=1, sig=False)
 
-    mask_path = Path(
-        f"./output/guid_out/C2C12_9_{time_late}/sequ{seq}"
-    )
-    # mask_path = None
+            # mask_path = Path(
+            #     f"./output/guid_out/C2C12_9_{time_late}/sequ{seq}"
+            # )
+            mask_path = None
 
-    if mask_path is not None:
-        each = True
-    else:
-        each = False
+            if mask_path is not None:
+                each = True
+            else:
+                each = False
 
-    data_paths = [Path(f"/home/kazuya/main/correlation_test/images/sequ{seq}")]
+            data_paths = [Path(f"/home/kazuya/main/correlation_test/images/sequ{seq}")]
 
-    weight_path = Path(
-        f"/home/kazuya/file_server2/CVPR_tracking/weight/C2C12_9_{time_late}/temp.pth"
-    )
+            weight_path = Path(
+                f"/home/kazuya/file_server2/CVPR_tracking/weight/C2C12_9_{time_late}/temp.pth"
+            )
 
-    net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
-    net.cuda()
+            net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
+            net.cuda()
 
-    if mask_path is not None:
-        save_path = Path(
-            f"./output/detection/{weight_path.parent.name}_mask/sequ{seq}"
-        )
-    else:
-        save_path = Path(
-            f"./output/detection/C2C12_9_{time_late}/sequ{seq}"
-        )
-    save_path.mkdir(parents=True, exist_ok=True)
+            if mask_path is not None:
+                save_path = Path(
+                    f"./output/detection/{weight_path.parent.name}_mask/sequ{seq}"
+                )
+            else:
+                save_path = Path(
+                    f"./output/detection/C2C12_9_{time_late}/sequ{seq}"
+                )
+            save_path.mkdir(parents=True, exist_ok=True)
 
-    args = {
-        "net": net,
-        "gpu": True,
-        "data_paths": data_paths,
-        "vis": False,
-        "vis_env": "val",
-        # "save_path": None,
-        "save_path": save_path,
-        "time_late": time_late,
-        "start": 0,
-        "mask_path": mask_path,
-    }
-    pre = Predict(**args)
-    pre(each=each)
+            args = {
+                "net": net,
+                "gpu": True,
+                "data_paths": data_paths,
+                "vis": False,
+                "vis_env": "val",
+                # "save_path": None,
+                "save_path": save_path,
+                "time_late": time_late,
+                "start": 0,
+                "mask_path": mask_path,
+                "seq": seq
+            }
+            pre = Predict(**args)
+            pre(each=each)

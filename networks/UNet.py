@@ -115,6 +115,7 @@ class UNet3(nn.Module):
         enc = [0] * 4
 
         t_enc[0] = self.inc(x_inp1)
+
         tn_enc[0] = self.inc(x_inp2)
         t_enc[1] = self.down[0](t_enc[0])
         tn_enc[1] = self.down[0](tn_enc[0])
