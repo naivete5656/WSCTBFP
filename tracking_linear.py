@@ -5,130 +5,132 @@ import numpy as np
 import cv2
 import pulp
 from utils import gaus_filter, optimum
+import shutil
 
 
 def gen_gt_gaussian(plots, shape):
     gauses = []
     for label, plot in enumerate(plots):
         img = np.zeros((shape[0], shape[1]))
-        img = cv2.circle(img, (int(plot[0]), int(plot[1])), 18, label + 1, thickness=-1)
+        img = cv2.circle(img, (int(plot[0]), int(plot[1])), 12, label + 1, thickness=-1)
         gauses.append(img)
     return gauses
 
 
 def make_file(save_path):
     # path def
-    save_path.joinpath(f"{frame:05d}/exclude").mkdir(
+    save_path.joinpath(f"{frame:05d}/tp").mkdir(
         parents=True, exist_ok=True
     )
-    save_path.joinpath(f"{frame:05d}/exclude2").mkdir(
+    save_path.joinpath(f"{frame:05d}/reject").mkdir(
         parents=True, exist_ok=True
     )
-    save_path.joinpath(f"{frame:05d}/miss").mkdir(
+    save_path.joinpath(f"{frame:05d}/fn").mkdir(
         parents=True, exist_ok=True
     )
-    save_path.joinpath(f"{frame:05d}/correct").mkdir(
-        parents=True, exist_ok=True
-    )
-    save_path.joinpath(f"{frame:05d}/over").mkdir(
+    save_path.joinpath(f"{frame:05d}/fp").mkdir(
         parents=True, exist_ok=True
     )
 
 
 def load_image(frame, ori_img_path):
     # load original image
-    img1 = cv2.imread(str(ori_img_path.joinpath(f"{frame:04d}_1.png")))
-    img2 = cv2.imread(str(ori_img_path.joinpath(f"{frame:04d}_2.png")))
-    pred1_im = cv2.imread(
+    img = cv2.imread(str(ori_img_path.joinpath(f"{frame:04d}_1.png")))
+    img_tn = cv2.imread(str(ori_img_path.joinpath(f"{frame:04d}_2.png")))
+    pred_im = cv2.imread(
         str(ori_img_path.parent.joinpath(f"pred/{frame:04d}_1.png")), 0
     )
-    pred2_im = cv2.imread(
+    pred_tn_im = cv2.imread(
         str(ori_img_path.parent.joinpath(f"pred/{frame:04d}_2.png")), 0
     )
+    return img, img_tn, pred_im, pred_tn_im
 
-    return img1, img2, pred1_im, pred2_im
+
+def load_image_each_cell(frame, cell_id, assoc_pred_path_root):
+    asso_img = cv2.imread(
+        str(assoc_pred_path_root.joinpath(f"pred/{frame:04d}_{cell_id + 1:04d}_1.png")), 0
+    )
+    asso_img_tn = cv2.imread(
+        str(assoc_pred_path_root.joinpath(f"pred/{frame:04d}_{cell_id + 1:04d}_2.png")), 0
+    )
+    inp_img = cv2.imread(
+        str(assoc_pred_path_root.joinpath(f"ori/{frame:04d}_{cell_id + 1:04d}_1.png")), 0
+    )
+    inp_img_tn = cv2.imread(
+        str(assoc_pred_path_root.joinpath(f"ori/{frame:04d}_{cell_id + 1:04d}_2.png")), 0
+    )
+
+    return asso_img, asso_img_tn, inp_img, inp_img_tn
 
 
-def visuarize_img(pre, frame, cell_id_t, root_path, img1, img2, pred1, pred2):
-    inp_img1 = cv2.imread(
-        str(root_path.joinpath(f"ori/{frame:04d}_{cell_id_t + 1:04d}_1.png")), 0
-    )
-    inp_img2 = cv2.imread(
-        str(root_path.joinpath(f"ori/{frame:04d}_{cell_id_t + 1:04d}_2.png")), 0
-    )
-
-    asso_img1 = cv2.imread(
-        str(root_path.joinpath(f"pred/{frame:04d}_{cell_id_t + 1:04d}_1.png")), 0
-    )
-    asso_img2 = cv2.imread(
-        str(root_path.joinpath(f"pred/{frame:04d}_{cell_id_t + 1:04d}_2.png")), 0
-    )
-    patch_window = (pre[1:3] - 50).clip(0, 512 - 100).astype(int)[::-1]
-    x = img2.copy()
-    # x = cv2.drawMarker(
-    #     x,
-    #     (int(pre[1]), int(pre[2])),
-    #     0,
-    #     markerType=cv2.MARKER_CROSS,
-    #     markerSize=10,
-    #     thickness=1,
-    #     line_type=cv2.LINE_8,
-    # )
-    img = np.hstack(
+def visuarize_img(patch_window, img1, img2):
+    img = np.vstack(
         [
             img1[
             patch_window[0]: patch_window[0] + 100,
             patch_window[1]: patch_window[1] + 100,
             ],
-            x[
+            img2[
             patch_window[0]: patch_window[0] + 100,
             patch_window[1]: patch_window[1] + 100,
             ],
         ]
     )
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    return img
 
-    pred = np.hstack(
-        [
-            pred1[
-            patch_window[0]: patch_window[0] + 100,
-            patch_window[1]: patch_window[1] + 100,
-            ],
-            pred2[
-            patch_window[0]: patch_window[0] + 100,
-            patch_window[1]: patch_window[1] + 100,
-            ],
-        ]
-    )
 
-    inp_img = np.hstack(
-        [
-            inp_img1[
-            patch_window[0]: patch_window[0] + 100,
-            patch_window[1]: patch_window[1] + 100,
-            ],
-            inp_img2[
-            patch_window[0]: patch_window[0] + 100,
-            patch_window[1]: patch_window[1] + 100,
-            ],
-        ]
-    )
-    asso_img = np.hstack(
-        [
-            asso_img1[
-            patch_window[0]: patch_window[0] + 100,
-            patch_window[1]: patch_window[1] + 100,
-            ],
-            asso_img2[
-            patch_window[0]: patch_window[0] + 100,
-            patch_window[1]: patch_window[1] + 100,
-            ],
-        ]
-    )
-    visual_img = np.vstack([img, inp_img])
-    lik_img = np.vstack([pred, asso_img])
-    visual_img = np.hstack([visual_img, lik_img])
-    return visual_img
+def output_result(pred, pred_tn, cell_id_t, cell_id_tn, frame, assoc_pred_path_root, save_mode, gt, region):
+    tn_pos = pred_tn[cell_id_tn]
+    t_pos = pred[cell_id_t]
+    asso_img, asso_img_tn, inp_img, inp_img_tn = load_image_each_cell(frame, cell_id_tn, assoc_pred_path_root)
+    patch_window = (tn_pos - 50).clip(0).astype(int)[:2][::-1]
+    patch_window[0] = min(patch_window[0], inp_img.shape[0])
+    patch_window[1] = min(patch_window[1], inp_img.shape[1])
+    img_vis_tn = img_tn.copy()
+
+    img_vis = img.copy()
+
+    pred_im_vis_tn = pred_tn_im.copy()
+    pred_im_vis_tn = cv2.cvtColor(pred_im_vis_tn, cv2.COLOR_GRAY2BGR)
+    pred_im_vis = cv2.cvtColor(pred_im, cv2.COLOR_GRAY2BGR)
+    # if save_mode == "reject":
+    #     cv2.circle(img_vis_tn, (int(tn_pos[0]), int(tn_pos[1])), 5, (255, 0, 0), 1)
+    #     cv2.circle(pred_im_vis_tn, (int(tn_pos[0]), int(tn_pos[1])), 5, (255, 0, 0), 1)
+    # elif save_mode == "fp":
+    #     cv2.circle(img_vis_tn, (int(tn_pos[0]), int(tn_pos[1])), 5, (0, 255, 0), 1)
+    #     cv2.circle(pred_im_vis_tn, (int(tn_pos[0]), int(tn_pos[1])), 5, (0, 255, 0), 1)
+    # else:
+    #     cv2.circle(img_vis_tn, (int(tn_pos[0]), int(tn_pos[1])), 5, (0, 0, 255), 1)
+    #     cv2.circle(pred_im_vis_tn, (int(tn_pos[0]), int(tn_pos[1])), 5, (0, 0, 255), 1)
+
+    # if save_mode != "reject":
+    #     cv2.circle(img_vis, (int(t_pos[0]), int(t_pos[1])), 5, (0, 255, 0), 1)
+    #     cv2.circle(pred_im_vis, (int(t_pos[0]), int(t_pos[1])), 5, (0, 255, 0), 1)
+
+    # if gt is not None:
+    #     cv2.circle(img_vis, (int(gt[2]), int(gt[3])), 5, (0, 0, 255), 1)
+    #     cv2.circle(pred_im_vis, (int(gt[2]), int(gt[3])), 5, (0, 0, 255), 1)
+
+
+    img_vis = visuarize_img(patch_window, img_vis, img_vis_tn)
+
+    temp = np.zeros_like(pred_im_vis_tn)
+    temp[region == cell_id_tn + 1] = 255
+    pred_im_vis_tn[temp[:, :, 0] != 0, :2] = 0
+    # plt.imshow(pred_im_vis_tn), plt.show()
+    pred_im_vis = visuarize_img(patch_window, pred_im_vis, pred_im_vis_tn)
+
+    asso_img_vis = visuarize_img(patch_window, asso_img, asso_img_tn)
+    asso_img_vis = cv2.cvtColor(asso_img_vis, cv2.COLOR_GRAY2BGR)
+    asso_img_vis[:100, :, 1] = asso_img_vis[:100, :, 1] * 0.85
+    asso_img_vis[:100, :, 2] = asso_img_vis[:100, :, 2] * 0.4
+    inp_img_vis = visuarize_img(patch_window, inp_img, inp_img_tn)
+    inp_img_vis = cv2.cvtColor(inp_img_vis, cv2.COLOR_GRAY2BGR)
+    vis_img = np.hstack([img_vis, pred_im_vis])
+    lik_img_vis = np.hstack([inp_img_vis, asso_img_vis])
+    vis_img = np.hstack([vis_img, lik_img_vis])
+
+    cv2.imwrite(str(save_path.joinpath(f"{frame:05d}/{save_mode}/{cell_id_tn}.png")), vis_img)
 
 
 def local_maxima(img, threshold, dist):
@@ -143,107 +145,163 @@ def local_maxima(img, threshold, dist):
     return data
 
 
+def check_associate(gts, pred_tn, pred, frame, assoc_pred_path_root, img, img_tn, pred_im, pred_tn_im):
+    tp = 0
+    fp = 0
+    reject = 0
+
+    # set gt
+    gt = gts[gts[:, 0] == (frame)]
+    gt_tn = gts[gts[:, 0] == (frame + time_late)]
+
+    gt2t = optimum(gt[:, 2:4], pred, 10)
+    gtn2tn = optimum(gt_tn[:, 2:4], pred_tn, 10)
+
+    # gt
+    t_ids = set(gt[gt2t[:, 0].astype(np.int)][:, 1])
+    tn_ids = set(gt_tn[gtn2tn[:, 0].astype(np.int)][:, 1])
+    tn_par_ids = set(gt_tn[gtn2tn[:, 0].astype(np.int)][:, 4])
+    true_ids = (t_ids & tn_ids) | (t_ids & tn_par_ids)
+
+    gauses = []
+    try:
+        for peak in pred_tn:
+            temp = np.zeros((512,512))
+            temp[int(peak[1]), int(peak[0])] = 255
+            gauses.append(gaus_filter(temp, 401, 12))
+        region = np.argmax(gauses, axis=0) + 1
+        likely_map = np.max(gauses, axis=0)
+        region[likely_map < 0.05] = 0
+        #
+        # r, g, b = np.loadtxt("./utils/color.csv", delimiter=",")
+    except ValueError:
+        region = np.zeros((512, 512), dtype=np.uint8)
+        likely_map = np.zeros((512, 512))
+    # visualize
+    for cell_id_tn, pre in enumerate(pred_tn):
+        if pre[3] == 1:
+            cell_id_t = int(pre[2])
+
+            # get pred peak's gt id
+            gt2t_assoc_index = np.where(gt2t[:, 1] == cell_id_t)[0]
+            gtn2tn_assoc_index = np.where(gtn2tn[:, 1] == cell_id_tn)[0]
+            if (gt2t_assoc_index.shape[0] != 0) and (
+                    gtn2tn_assoc_index.shape[0] != 0
+            ):
+                gt_index = gt2t[gt2t_assoc_index][0, 0]
+                gt_cell_id = gt[int(gt_index)][1]
+
+                gtn_index = gtn2tn[gtn2tn_assoc_index][0, 0]
+                gtn_cell_id = gt_tn[int(gtn_index)][1]
+
+                parent_id = gt_tn[int(gtn_index)][4]
+                mitosis_flag = (parent_id == gtn_cell_id)
+
+                if (gt_cell_id == gtn_cell_id) or (mitosis_flag):
+                    gt_pos = gt[int(gt_index)]
+                    save_mode = "tp"
+                    tp += 1
+                    true_ids.remove(gt_cell_id)
+                else:
+                    gt_pos = gt_tn[gt_tn[:, 1] == gtn_cell_id]
+                    if gt_pos.shape[0] == 0:
+                        gt_pos = None
+                    else:
+                        gt_pos = gt_pos[0]
+                    save_mode = "fp"
+                    fp += 1
+
+            else:
+                if gtn2tn_assoc_index.shape[0] != 0:
+                    gtn_index = gtn2tn[gtn2tn_assoc_index][0, 0]
+                    gt_pos = gt_tn[[int(gtn_index)]]
+                    if gt_pos.shape[0] == 0:
+                        gt_pos = None
+                    else:
+                        gt_pos = gt_pos[0]
+                else:
+                    gt_pos = None
+                # 端にある細胞への処理
+                plot_list = np.concatenate(
+                    (np.expand_dims(pred[cell_id_t][:2], axis=0), np.expand_dims(pred_tn[cell_id_tn][:2], axis=0)),
+                    axis=0)
+                flag = np.any((10 > plot_list) | (plot_list > img.shape[0] - 10))
+                if flag:
+                    save_mode = "no"
+                    reject += 1
+                else:
+                    save_mode = "fp"
+                    fp += 1
+        else:
+            cell_id_t = -1
+            gt_pos = None
+            save_mode = "reject"
+            reject += 1
+
+        output_result(pred, pred_tn, cell_id_t, cell_id_tn, frame, assoc_pred_path_root, save_mode, gt_pos, region)
+
+    fn_ind = np.isin(gt[:, 1], list(true_ids))
+    fn_pos = gt[fn_ind]
+    plt.imshow(img), plt.plot(fn_pos[:, 2], fn_pos[:, 3], "rx"), plt.savefig(
+        str(save_path.joinpath(f"{frame:05d}/fn/fn_cells.png"))), plt.close()
+
+    return tp, reject, fp, fn_pos.shape[0]
+
+
 class LinearAssociation(object):
-    def __init__(self, pred1, pred2):
-        self.c_size = pred1.shape[0] + pred2.shape[0]
-        self.pred1_size = pred1.shape[0]
-        self.pred2_size = pred2.shape[0]
-        self.c = np.zeros((0, pred1.shape[0] + pred2.shape[0]))
+    def __init__(self, pred_tn, pred, dist_thresh=20):
+        self.dist_thresh = dist_thresh
+        self.c_size = pred_tn.shape[0] + pred.shape[0]
+        self.pred_tn_size = pred_tn.shape[0]
+        self.pred_size = pred.shape[0]
+        self.c = np.zeros((0, pred_tn.shape[0] + pred.shape[0]))
         self.d = []
         self.associate_id = []
 
-    def decide_cell_id_tn(self, cell_id_t, cell_id_tn, pred1, pred2, dists, dist_list, n=1):
-        if pred2[cell_id_tn][2] == 0:
-            plt.imshow(img2), plt.plot(
-                pred1[cell_id_t][1], pred1[cell_id_t][2], "rx"
-            ), plt.plot(pred2[cell_id_tn][0], pred2[cell_id_tn][1], "b3"), plt.savefig(
-                "test.png"
-            ), plt.close()
-            pred2[cell_id_tn][2] = 1
-            pred2[cell_id_tn][3] = cell_id_t
-            pred1[cell_id_t][3] = cell_id_tn
-            pred1[cell_id_t][4] = 1
-            # plt.imshow(img1), plt.plot(
-            #     pred1[cell_id_t][1], pred1[cell_id_t][2], "rx"
-            # ), plt.plot(pred2[cell_id_tn][0], pred2[cell_id_tn][1], "b3"), plt.show()
-            return pred1, pred2
-        else:
-            cell_id_conf = int(pred2[cell_id_tn][3])
-            if np.min(dists[0]) < np.min(dist_list[cell_id_conf][0]):
-                plt.imshow(img2), plt.plot(
-                    pred1[cell_id_t][1], pred1[cell_id_t][2], "rx"
-                ), plt.plot(pred2[cell_id_tn][0], pred2[cell_id_tn][1], "b3"), plt.savefig(
-                    "test.png"
-                ), plt.close()
-                pred1[cell_id_t][3] = cell_id_tn
-                pred1[cell_id_t][4] = 1
-                pred2[cell_id_tn][3] = cell_id_t
-                dists = dist_list[cell_id_conf]
-                cell_id_t = cell_id_conf
-            try:
-                dist_idx = np.where(dists[:, 0] == np.sort(dists[:, 0])[1])[0][0]
-                cell_id_tn = int(dists[dist_idx][1])
-            except IndexError:
-                dist_idx = 0
-                dists = [[255]]
-
-            if dists[dist_idx][0] > 0.8:
-                pred1[cell_id_t][4] = 3
-                return pred1, pred2
-            if n < 5:
-                return decide_cell_id_tn(
-                    cell_id_t, cell_id_tn, pred1, pred2, dists, dist_list, n + 1
-                )
-            else:
-                pred1[cell_id_t][4] = 3
-                return pred1, pred2
-
-    def add_cand(self, asso_img, gauses, gt, cand_idx, cell_id_t):
-        for idx in cand_idx:
-            gau = gauses[idx]
-            aso = asso_img[gau > 0].copy()
-            gaus = gt[gau > 0].copy()
-            aso = aso / 255
-            gaus = gaus / 255
-            thresh = np.sum(np.square(gaus)) / gaus.size
-            residual = np.sum(np.square(gaus - aso)) / gaus.size / thresh
-            if 1 > residual:
-                self.associate_id.append([cell_id_t, idx])
-                self.d.append(1 - residual)
-                c1 = np.zeros((1, self.c_size))
-                c1[0, cell_id_t] = 1
-                c1[0, self.pred1_size + idx] = 1
-                self.c = np.append(self.c, c1, axis=0)
-            else:
-                pass
-
-    def optimum(
-            self, asso_img, cell_id_t, pred1, pred2, pre, dist_list, gauses, pred_im, cand_idx
+    def add_cand(
+            self, asso_img, cell_id_tn, gauses, pred_im, cand_idx
     ):
         # get peak from assoc
-        mask = pred2_im.copy()
+        mask = pred_im.copy()
         mask[pred_im > 50] = 1
         mask[pred_im <= 50] = 0
         asso_img = mask * asso_img
 
-        self.add_cand(asso_img, gauses, pred_im, cand_idx, cell_id_t)
+        for idx in cand_idx:
+            gau = gauses[idx]
+            aso = asso_img[gau > 0].copy()
+            gaus = pred_im[gau > 0].copy()
+            aso = aso / 255
+            gaus = gaus / 255
+            thresh = np.sum(np.square(gaus))
+            residual = np.sum(np.square(gaus - aso)) / thresh
+
+            self.associate_id.append([cell_id_tn, idx])
+            self.d.append(1 - residual)
+            c1 = np.zeros((1, self.c_size))
+            c1[0, cell_id_tn] = 1
+            c1[0, self.pred_tn_size + idx] = 1
+            self.c = np.append(self.c, c1, axis=0)
 
     def associate_predict_result(
-            self, pred1, pred2, frame, assoc_pred_path, img1, img2, inverse, pred_im
+            self, pred_tn, pred, frame, assoc_pred_path, pred_im
     ):
         dist_list = []
-        pred1_plot = pred1[:, :3].copy()
+        pred_tn_plot = pred_tn[:, :2].copy()
 
-        gauses = gen_gt_gaussian(pred2, pred_im.shape)
-        print(pred1_plot[:, 0].max())
-        for cell_id_t, pre in enumerate(pred1_plot):
-            asso_img = cv2.imread(str(assoc_pred_path.joinpath(f"pred/{frame:04d}_{cell_id_t + 1:04d}_1.png")), 0)
-            dist = np.sqrt(np.sum(np.square(pred2[:, :2] - pre[1:]), axis=1))
-            cand_idx = np.where(dist < 20)[0]
+        gauses = gen_gt_gaussian(pred, pred_im.shape)
+
+        for cell_id_tn, pre in enumerate(pred_tn_plot):
+            asso_img = cv2.imread(str(assoc_pred_path.joinpath(f"pred/{frame:04d}_{cell_id_tn + 1:04d}_1.png")), 0)
+            dist = np.sqrt(np.sum(np.square(pred[:, :2] - pre), axis=1))
+            cand_idx = np.where(dist < self.dist_thresh)[0]
             # if cand_idx
+            # plt.imshow(asso_img), plt.plot(pre[0], pre[1], "r2"), plt.show()
+            #
+            # plt.imshow(img), plt.plot(pre[0], pre[1], "r2"), plt.plot(pred[cand_idx][:,0], pred[cand_idx][:,1], 'g3'),plt.plot,plt.show()
 
-            self.optimum(
-                asso_img, cell_id_t, pred1, pred2, pre, dist_list, gauses, pred_im, cand_idx
+            self.add_cand(
+                asso_img, cell_id_tn, gauses, pred_im, cand_idx
             )
         self.d = np.array(self.d)
 
@@ -267,188 +325,109 @@ class LinearAssociation(object):
         x_list = np.zeros(self.d.shape[0], dtype=int)
         for jj in range(self.d.shape[0]):
             x_list[jj] = int(x_vars[jj].value())
-        return pred1, pred2
 
+        self.associate_id = np.array(self.associate_id)
+
+        for idx, associate_id in enumerate(self.associate_id):
+            if x_list[idx]:
+                if self.d[idx] > 0.5:
+                    pred_tn[associate_id[0]][2] = associate_id[1]
+                    pred_tn[associate_id[0]][3] = 1
+                    pred[associate_id[1]][2] = associate_id[0]
+                    pred[associate_id[1]][3] = 1
+                else:
+                    pred_tn[associate_id[0]][3] = 2
+                    pred[associate_id[1]][3] = 2
+
+        return pred_tn, pred
+
+
+dis_th = {1: 20, 5: 40, 9: 60}
 
 if __name__ == "__main__":
-    ori_path_root = Path(f"./output/detection/C2C12_9_1")
-    assoc_pred_path_root = Path(f"./output/detection/C2C12_9_1_mask")
-    guided_path_root = Path(f"./output/guid_out/C2C12_9_1")
-    gts = np.loadtxt(f"/home/kazuya/main/correlation_test/images/tracking_annotation/gt_sequ_9.txt", delimiter=",",
-                     skiprows=1)
-    save_path_root = Path("./output/association/C2C12_9_1")
-    num = 1
-    time_lates = [1]
-    dataset = "sequ9"
-    seqs = [9]
-    inverse = True
-    direction = "fromn"
-    image_num = 1
-    mode = "backward"
+    mode = ""
+    for time_late in [9]:
+        for seq in [6]:
+            ori_path_root = Path(f"./output/detection/C2C12_9_{time_late}/sequ{seq}")
+            assoc_pred_path_root = Path(f"./output/detection/C2C12_9_{time_late}_mask/sequ{seq}")
+            guided_path_root = Path(f"./output/guid_out/C2C12_9_{time_late}/sequ{seq}")
+            gts = np.loadtxt(f"/home/kazuya/main/correlation_test/images/tracking_annotation/gt_seq_{seq}.txt",
+                             delimiter=",",
+                             skiprows=1)
+            # save_path_root = Path(f"./output/association{mode}/C2C12_9_{time_late}/sequ{seq}")
+            save_path_root = Path(f"./output/for_vis/C2C12_9_{time_late}/sequ{seq}")
+            if save_path_root.is_dir():
+                shutil.rmtree(save_path_root)
 
-    for time_late in time_lates:
-        for seq in seqs:
-            ori_path = ori_path_root.joinpath(f"sequ{seq}/ori")
-            assoc_pred_path = assoc_pred_path_root.joinpath(f"sequ{seq}")
-            save_path = save_path_root.joinpath(f"sequ{seq}")
+            tps = 0
+            rejects = 0
+            fps = 0
+            fns = 0
+
+            ori_path = ori_path_root.joinpath(f"ori")
+            assoc_pred_path = assoc_pred_path_root
+            save_path = save_path_root
 
             tp = 0
-            miss = 0
-            exclude = 0
-            disapeared = 0
-            over = 0
-            for frame in range(0, 780 - time_late):
-                guided_path = guided_path_root.joinpath(f"sequ{seq}/{frame:05d}")
+            fp = 0
+            reject = 0
+            for frame in range(0, 200 - time_late):
+                guided_path = guided_path_root.joinpath(f"{frame:05d}")
                 make_file(save_path)
 
-                img1, img2, pred1_im, pred2_im = load_image(frame, ori_path)
-                pred_im = pred1_im
+                img, img_tn, pred_im, pred_tn_im = load_image(frame, ori_path)
 
-                pred1 = np.loadtxt(
+                pred_tn = np.loadtxt(
                     str(guided_path.joinpath("peaks.txt")), skiprows=2, delimiter=",", ndmin=2
                 )
-                pred2 = local_maxima(pred_im, 80, 2)
+                pred = local_maxima(pred_im, 80, 2)
 
-                # [index, x, y, cell_id, state]
-                pred1 = np.insert(pred1, 3, [[-1], [0]], axis=1)
-                # [x, y, flag, cell_id]
-                pred2 = np.insert(pred2, 2, [[0], [-1]], axis=1)
+                # [x, y, cell_id, state]
+                pred_tn = pred_tn[:, 1:]
+                pred_tn = np.insert(pred_tn, 2, [[-1], [0]], axis=1)
+                # [x, y, cell_id, state]
+                pred = np.insert(pred, 2, [[-1], [0]], axis=1)
 
-                associater = LinearAssociation(pred1, pred2)
+                associater = LinearAssociation(pred_tn, pred, dist_thresh=dis_th[time_late])
 
-                pred1, pred2 = associater.associate_predict_result(
-                    pred1, pred2, frame, assoc_pred_path, img1, img2, inverse, pred_im
+                pred_tn, pred = associater.associate_predict_result(
+                    pred_tn, pred, frame, assoc_pred_path, pred_im
                 )
 
-            #     # set gt
-            #     gt1 = gts[gts[:, 0] == (frame + 1)]
-            #     gt2 = gts[gts[:, 0] == (frame + time_late + 1)]
-            #     if inverse:
-            #         temp = gt1
-            #         gt1 = gt2
-            #         gt2 = temp
-            #     gt2t = optimum(gt1[:, 2:4], pred1[:, 1:], 20)
-            #     gtn2tn = optimum(gt2[:, 2:4], pred2, 20)
-            #
-            #     # visualize
-            #     for cell_id_t, pre in enumerate(pred1):
-            #         vis_img = visuarize_img(
-            #             pre,
-            #             frame,
-            #             cell_id_t,
-            #             assoc_pred_path,
-            #             img1,
-            #             img2,
-            #             pred1_im,
-            #             pred2_im,
-            #         )
-            #         if pre[4] == 2:
-            #
-            #             cv2.imwrite(
-            #                 str(
-            #                     save_path.joinpath(
-            #                         f"{frame:05d}/exclude/{cell_id_t}.png"
-            #                     )
-            #                 ),
-            #                 vis_img,
-            #             )
-            #             exclude += 1
-            #         elif pre[4] == 3:
-            #
-            #             cv2.imwrite(
-            #                 str(
-            #                     save_path.joinpath(
-            #                         f"{frame:05d}/exclude2/{cell_id_t}.png"
-            #                     )
-            #                 ),
-            #                 vis_img,
-            #             )
-            #             exclude += 1
-            #         elif pre[4] == 1:
-            #
-            #             cell_id_tn = pre[3]
-            #
-            #             # get pred peak's gt id
-            #             gt2t_assoc_index = np.where(gt2t[:, 1] == cell_id_t)[0]
-            #             gtn2tn_assoc_index = np.where(gtn2tn[:, 1] == cell_id_tn)[0]
-            #             if (gt2t_assoc_index.shape[0] != 0) and (
-            #                     gtn2tn_assoc_index.shape[0] != 0
-            #             ):
-            #                 gt_index = gt2t[gt2t_assoc_index][0, 0]
-            #                 gt_cell_id = gt1[int(gt_index)][1]
-            #
-            #                 gtn_index = gtn2tn[gtn2tn_assoc_index][0, 0]
-            #                 gtn_cell_id = gt2[int(gtn_index)][1]
-            #                 plt.imshow(img1), plt.plot(
-            #                     gt1[int(gt_index)][2], gt1[int(gt_index)][3], "rx"
-            #                 ), plt.plot(
-            #                     gt2[int(gtn_index)][2], gt2[int(gtn_index)][3], "rx"
-            #                 ), plt.savefig(
-            #                     "test.png"
-            #                 )
-            #                 plt.close()
-            #                 if inverse:
-            #                     parent_id = gt1[int(gt_index)][4]
-            #                     mitosis_flag = parent_id == gtn_cell_id
-            #                 else:
-            #                     parent_id = gt2[int(gtn_index)][4]
-            #                     mitosis_flag = parent_id == gt_cell_id
-            #                 if (gt_cell_id == gtn_cell_id) or (mitosis_flag):
-            #
-            #                     cv2.imwrite(
-            #                         str(
-            #                             save_path.joinpath(
-            #                                 f"{frame:05d}/correct/{cell_id_t}.png"
-            #                             )
-            #                         ),
-            #                         vis_img,
-            #                     )
-            #                     tp += 1
-            #
-            #                 else:
-            #                     cv2.imwrite(
-            #                         str(
-            #                             save_path.joinpath(
-            #                                 f"{frame:05d}/miss/{cell_id_t}.png"
-            #                             )
-            #                         ),
-            #                         vis_img,
-            #                     )
-            #                     miss += 1
-            #             else:
-            #                 cv2.imwrite(
-            #                     str(
-            #                         save_path.joinpath(
-            #                             f"{frame:05d}/over/{cell_id_t}.png"
-            #                         )
-            #                     ),
-            #                     vis_img,
-            #                 )
-            #                 # plt.imshow(vis_img), plt.show()
-            #                 over += 1
-            #
-            #     np.savetxt(
-            #         str(save_path.joinpath(f"{frame:05d}/traject_1.txt")),
-            #         pred1,
-            #         fmt="%03d",
-            #         header="[index, x, y, cell_id, state]",
-            #         delimiter=",",
-            #     )
-            #
-            #     np.savetxt(
-            #         str(save_path.joinpath(f"{frame:05d}/traject_2.txt")),
-            #         pred2,
-            #         fmt="%03d",
-            #         header="[x, y, state, cell_id]",
-            #         delimiter=",",
-            #     )
-            #     print(f"{frame},{tp / (tp + miss + over)}")
-            #     print(exclude / (tp + exclude + miss + over))  # 除いた細胞の割合
-            # print(tp / (tp + miss + over))  # tracking accuracy
-            # print(exclude / (tp + exclude + miss + over))  # 除いた細胞の割合
-            # with save_path.joinpath("result.txt").open("w") as f:
-            #     f.write(
-            #         f"{tp / (tp + miss + over)}, {exclude / (tp + exclude + miss + over)}\n"
-            #     )
-            #     f.write(f"tp, miss, over, exclude\n")
-            #     f.write(f"{tp}, {miss}, {over}, {exclude}\n")
+                np.savetxt(
+                    str(save_path.joinpath(f"{frame:05d}/traject_1.txt")),
+                    pred,
+                    fmt="%03d",
+                    header="[x, y, state, cell_id]",
+                    delimiter=",",
+                )
+
+                np.savetxt(
+                    str(save_path.joinpath(f"{frame:05d}/traject_2.txt")),
+                    pred_tn,
+                    fmt="%03d",
+                    header="[x, y, state, cell_id]",
+                    delimiter=",",
+                )
+
+                tp, reject, fp, fn = check_associate(gts, pred_tn, pred, frame, assoc_pred_path, img, img_tn,
+                                                     pred_im, pred_tn_im)
+
+                print(tp, reject, fp, fn)
+
+                tps += tp
+                rejects += reject
+                fps += fp
+                fns += fn
+                print(f"{frame},precision = {tps / (tps + fps)}", f"recall={tps / (tps + fns)}")
+                print(f"f1={2 * tps / (2 * tps + fps + fns)}")  # 除いた細胞の割合
+                print(f"reject={(tps + fps + fns) / ((tps + fps + fns) + rejects)}")  # 除いた細胞の割合
+            print(f"final result,precision = {tps / (tps + fps)}", f"recall={tps / (tps + fns)}")
+            print(f"f1={2 * tps / (2 * tps + fps + fns)}")  # 除いた細胞の割合
+            print(f"reject={(tps + fps + fns) / ((tps + fps + fns) + rejects)}")  # 除いた細胞の割合
+            with save_path.joinpath("result.txt").open("w") as f:
+                f.write(
+                    f"{tps / (tps + fps)}, {tps / (tps + fns)}, {2 * tps / (2 * tps + fps + fns)}, {(tps + fps + fns) / ((tps + fps + fns) + rejects)}\n"
+                )
+                f.write(f"tp, fp, fn, reject\n")
+                f.write(f"{tps}, {fps}, {fns}, {rejects}\n")

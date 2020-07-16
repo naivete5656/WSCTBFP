@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:latest
+FROM pytorch/pytorch:1.0-cuda10.0-cudnn7-runtime
 LABEL maintainer="nishimura"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

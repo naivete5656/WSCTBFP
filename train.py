@@ -220,8 +220,8 @@ if __name__ == "__main__":
     for time_late in [1, 5, 9]:
         torch.cuda.set_device(0)
         plot_size = 9
-        train_paths = [Path(f"/home/kazuya/main/correlation_test/images/sequ9")]
-        val_paths = [Path(f"/home/kazuya/main/correlation_test/images/sequ16")]
+        train_paths = [Path(f"/home/kazuya/main/ECCV/correlation_test/images/sequ9")]
+        val_paths = [Path(f"/home/kazuya/main/ECCV/correlation_test/images/sequ16")]
 
         net = UNet3(n_channels=1, n_classes=1, sig=False)
         net.cuda()
@@ -235,8 +235,8 @@ if __name__ == "__main__":
 
         args = {
             "gpu": True,
-            "batch_size": 10,
-            "epochs": 1000,
+            "batch_size": 8,
+            "epochs": 1500,
             "lr": 1e-3,
             "train_paths": train_paths,
             "val_paths": val_paths,

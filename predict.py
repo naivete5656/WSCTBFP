@@ -28,10 +28,17 @@ class Predict(object):
 
         ori_paths = gather_path(kwargs["data_paths"], "ori")[kwargs["start"]:]
         gt_paths = gather_path(kwargs["data_paths"], "6")[kwargs["start"]:]
-        # if kwargs["seq"] == 10:
-        #     crop_init = (300, 160)
-        # else:
-        #     crop_init = (500, 300)
+
+        assert len(ori_paths) > 0, print(kwargs["data_paths"])
+        assert len(gt_paths) > 0, print(kwargs["data_paths"])
+        if kwargs["seq"] == 10:
+            crop_init = (300, 160)
+        elif (kwargs["seq"] == 6) or (kwargs["seq"] == 15):
+            crop_init = (0, 0)
+        elif kwargs["seq"] == 13:
+            crop_init = (528, 0)
+        else:
+            crop_init = (500, 300)
         if kwargs["mask_path"] is not None:
             bg_paths = gather_path(kwargs["data_paths"], "bg")[kwargs["start"]:]
             data_loader = CellImageLoadTest(
@@ -52,12 +59,12 @@ class Predict(object):
                               kwargs["start"]:
                               ]
 
-        save_path.joinpath("ori").mkdir(parents=True, exist_ok=True)
-        save_path.joinpath("ori").chmod(0o777)
-        save_path.joinpath("gt").mkdir(parents=True, exist_ok=True)
-        save_path.joinpath("gt").chmod(0o777)
-        save_path.joinpath("pred").mkdir(parents=True, exist_ok=True)
-        save_path.joinpath("pred").chmod(0o777)
+        self.save_path.joinpath("ori").mkdir(parents=True, exist_ok=True)
+        self.save_path.joinpath("ori").chmod(0o777)
+        self.save_path.joinpath("gt").mkdir(parents=True, exist_ok=True)
+        self.save_path.joinpath("gt").chmod(0o777)
+        self.save_path.joinpath("pred").mkdir(parents=True, exist_ok=True)
+        self.save_path.joinpath("pred").chmod(0o777)
 
     def vis_init(self, env):
         import visdom
@@ -90,14 +97,17 @@ class Predict(object):
 
             if kwargs["each"]:
                 bg = data["bg"]
-                gbs = np.load(str(self.mask_paths[iteration]))["gb"]
-
+                try:
+                    gbs = np.load(str(self.mask_paths[iteration]))["gb"]
+                except:
+                    print(str(self.mask_paths[iteration]))
                 gbs[0] = 0
                 gbs_normt = [gbs[0, 1]]
                 for gb in gbs[1:]:
                     gb = gb[0]
                     x = gb[gb > 0.01]
-                    gb = gb / sorted(x)[round(len(x) * 0.99)]
+                    if gb.max() > 0:
+                        gb = gb / sorted(x)[round(len(x) * 0.99)]
                     gbs_normt.append(gb)
 
                 gbs_normt1 = [gbs[0, 1]]
@@ -105,7 +115,8 @@ class Predict(object):
                 for gb in gbs[1:]:
                     gb = gb[0]
                     x = gb[gb > 0.01]
-                    gb = gb / sorted(x)[round(len(x) * 0.99)]
+                    if gb.max() > 0:
+                        gb = gb / sorted(x)[round(len(x) * 0.99)]
                     gbs_normt1.append(gb)
 
                 gbs_normt = np.array(gbs_normt).reshape(
@@ -277,17 +288,17 @@ class Predict(object):
 if __name__ == "__main__":
     num = 1
     torch.cuda.set_device(num)
-    # seqs = [9, 2, 16, 17, 18]
-    # seqs = [10, 11, 12, 2, 18]
-    time_lates = [1, 5, 9]
+    seqs = [13]
+    # seqs = [6, 13]
+    time_lates = [5, 9]
     for time_late in time_lates:
-        for seq in [9]:
+        for seq in seqs:
             net = UNet3(n_channels=1, n_classes=1, sig=False)
 
-            # mask_path = Path(
-            #     f"./output/guid_out/C2C12_9_{time_late}/sequ{seq}"
-            # )
-            mask_path = None
+            mask_path = Path(
+                f"./output/guid_out/C2C12_9_{time_late}/sequ{seq}"
+            )
+            # mask_path = None
 
             if mask_path is not None:
                 each = True

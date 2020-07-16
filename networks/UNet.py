@@ -298,5 +298,5 @@ if __name__ == "__main__":
     import torch
 
     x = torch.rand((10, 2, 256, 256))
-    net = UNet(n_channels=1, n_classes=1)
+    net = UNet3(n_channels=1, n_classes=1)
     net(x)

@@ -158,41 +158,42 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
 SGM = 5  # CMFの幅/2の値
 ############################################################################################
 if __name__ == "__main__":
-    seqs = [2]
-    time_lates = [1]
+    seqs = [13]
+    time_lates = [1, 5, 9]
     for time_late in time_lates:
         for seq in seqs:
-            save_CMP_path = Path(f"./images/sequ{seq}/CMF_6_{time_late}")
+            save_CMP_path = Path(f"/home/kazuya/main/weakly_tracking/images/sequ{seq}/CMF_6_{time_late}")
+
             save_mask_path = save_CMP_path.parent.joinpath(f"mask_{time_late}")
             save_CMP_path.mkdir(parents=True, exist_ok=True)
             save_mask_path.mkdir(parents=True, exist_ok=True)
 
-            root_path = Path(f"./output/association/C2C12_9/{time_late}-sequ{seq}")
-            # /home/kazuya/main/correlation_test/1-sequ10/00000
-            # root_path = Path(
-            #     f"/home/kazuya/main/correlation_test/output/association/Elmer/1_{time_late}"
-            # )
+            root_path = Path(f"../output/association/C2C12_9_{time_late}/sequ{seq}")
 
             pred1_paths = sorted(root_path.glob("*/*_1.txt"))
 
             pred2_paths = sorted(root_path.glob("*/*_2.txt"))
 
             for frame, pred_path in enumerate(zip(pred1_paths, pred2_paths)):
-                # [index, x, y, cell_id, state]
+                # [x, y, cell_id, state]
                 pred1 = np.loadtxt(str(pred_path[0]), delimiter=",", skiprows=1)
-                # [x, y, state, cell_id]
+                # [x, y, cell_id, state]
                 pred2 = np.loadtxt(str(pred_path[1]), delimiter=",", skiprows=1)
 
-                pred1 = np.concatenate(
-                    [pred1, np.arange(pred1.shape[0]).reshape(pred1.shape[0], -1)],
-                    axis=1,
-                )
-
-                for cell_id, pre in enumerate(pred1):
+                track_let = np.zeros(((pred1.shape[0] + pred2.shape[0], 5)))
+                track_let[pred2.shape[0]:, 0] = 2
+                track_let[: pred2.shape[0], 0] = 1
+                track_let[pred2.shape[0]:, 2:4] = pred1[:, :2]
+                track_let[: pred2.shape[0], 2:4] = pred2[:, :2]
+                track_let[:, -1] = -1
+                track_let[:, 1] = -1
+                for index, pre in enumerate(pred1):
+                    track_let[int(pred2.shape[0] + index), 1] = index
                     if pre[3] != -1:
-                        pred2[int(pre[3])][3] = cell_id
+                        track_let[int(pre[2]), 1] = index
+                track_let = track_let[track_let[:, 1] != -1]
 
-                exclude_cells = pred1[pred1[:, 4] == 2]
+                exclude_cells = pred1[pred1[:, 3] == 2]
                 mask = np.zeros((512, 512))
                 for exclude_cell in exclude_cells:
                     mask = cv2.circle(
@@ -202,7 +203,8 @@ if __name__ == "__main__":
                         255,
                         -1,
                     )
-                exclude_cells = pred2[pred2[:, 2] == 0]
+
+                exclude_cells = pred2[pred2[:, 3] == 0]
                 for exclude_cell in exclude_cells:
                     mask = cv2.circle(
                         mask,
@@ -212,19 +214,7 @@ if __name__ == "__main__":
                         -1,
                     )
 
-                pred1 = pred1[pred1[:, 4] != 2]
-                pred2 = pred2[pred2[:, 2] != 0]
 
-                track_let = np.zeros(
-                    ((pred1.shape[0] + pred2.shape[0], 5))
-                )  # [frame, cell id  x, y pair id]
-                track_let[pred2.shape[0] :, 0] = 2
-                track_let[: pred2.shape[0], 0] = 1
-                track_let[pred2.shape[0] :, 1] = pred1[:, 5]
-                track_let[: pred2.shape[0], 1] = pred2[:, 3]
-                track_let[pred2.shape[0] :, 2:4] = pred1[:, 1:3]
-                track_let[: pred2.shape[0], 2:4] = pred2[:, 0:2]
-                track_let[:, -1] = -1
 
                 cv2.imwrite(
                     str(save_mask_path.joinpath(f"{frame:05d}.tif")),

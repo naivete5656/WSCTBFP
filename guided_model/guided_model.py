@@ -58,11 +58,25 @@ class GuidedModel(nn.Sequential):
 
         if dataset == "PhC-C2DL-PSC":
             peaks = peaks[(peaks[:, 0] > 24) & (peaks[:, 0] < 744)]
-        region = np.zeros(self.shape)
-        for label, peak in enumerate(peaks):
-            region = cv2.circle(
-                region, (int(peak[0]), int(peak[1])), 18, label + 1, thickness=-1
-            )
+        # region = np.zeros(self.shape)
+        # for label, peak in enumerate(peaks):
+        #     region = cv2.circle(
+        #         region, (int(peak[0]), int(peak[1])), 18, label + 1, thickness=-1
+        #     )
+        gauses = []
+        try:
+            for peak in peaks:
+                temp = np.zeros(self.shape)
+                temp[peak[1], peak[0]] = 255
+                gauses.append(gaus_filter(temp, 401, 12))
+            region = np.argmax(gauses, axis=0) + 1
+            likely_map = np.max(gauses, axis=0)
+            region[likely_map < 0.05] = 0
+            #
+            # r, g, b = np.loadtxt("./utils/color.csv", delimiter=",")
+        except ValueError:
+            region = np.zeros(self.shape, dtype=np.uint8)
+            likely_map = np.zeros(self.shape)
 
         gbs = []
         # each propagate

@@ -30,11 +30,13 @@ def RandomFlipper(seed, ori, target):
 
 
 class CMPLoad(object):
-    def __init__(self, ori_path, crop_size=(256, 256), crop=(0, 0)):
+    def __init__(self, ori_path, crop_size=(256, 256), crop=(0, 0), mode="", mask_rad=""):
         self.ori_paths = ori_path
         # self.gt_paths = gt_path
         self.crop_size = crop_size
         self.crop = crop
+        self.mode = mode
+        self.mask_rad = mask_rad
 
     def __len__(self):
         return len(self.ori_paths)
@@ -50,31 +52,36 @@ class CMPLoad(object):
     def __getitem__(self, data_id):
         img_name = self.ori_paths[data_id, 0]
         time_late = self.ori_paths[data_id, 1]
-        CMP_frame = int(img_name.stem[-2:])
+        CMP_frame = int(img_name.stem[-3:])
 
         img_name2 = img_name.parent.joinpath(
-            img_name.stem[:-2] + f"{int(img_name.stem[-2:]) + int(time_late):02d}.tif"
+            f"{int(img_name.stem[-3:]) + int(time_late):05d}.tif"
         )
         img = cv2.imread(str(img_name), -1)[
             self.crop[0] : self.crop[0] + 512, self.crop[1] : self.crop[1] + 512
         ]
+        # img = img / 13132
         img = img / 4096
         # img = img[self.crop[0] : self.crop[0] + 512, self.crop[1] : self.crop[1] + 512]
-        img2 = cv2.imread(str(img_name2), -1)[
-            self.crop[0] : self.crop[0] + 512, self.crop[1] : self.crop[1] + 512
-        ]
+        try:
+            img2 = cv2.imread(str(img_name2), -1)[
+                self.crop[0] : self.crop[0] + 512, self.crop[1] : self.crop[1] + 512
+            ]
+        except:
+            print(img_name2)
+        # img2 = img2 / 13132
         img2 = img2 / 4096
         # img2 = img2[
         #     self.crop[0] : self.crop[0] + 512, self.crop[1] : self.crop[1] + 512
         # ]
 
         gt_name = img_name.parent.parent.joinpath(
-            f"CMP_6_{int(time_late)}/{CMP_frame:05d}.npy"
+            f"CMP_6{self.mode}_{int(time_late)}/{CMP_frame:05d}.npy"
         )
         gt = np.load(str(gt_name)).astype(np.float32)
 
         mask_name = img_name.parent.parent.joinpath(
-            f"mask_{int(time_late)}/{CMP_frame:05d}.tif"
+            f"mask{self.mode}{self.mask_rad}_{int(time_late)}/{CMP_frame:05d}.tif"
         )
         mask = cv2.imread(str(mask_name), 0)
 

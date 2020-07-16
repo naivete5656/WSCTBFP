@@ -249,8 +249,8 @@ def associate_predict_result(
 if __name__ == "__main__":
     ori_path_root = Path(f"./output/detection/C2C12_9_1")
     assoc_pred_path_root = Path(f"./output/detection/C2C12_9_1_mask")
-    guided_path_root = Path(f"./output/guid_out")
-    gts = np.loadtxt(f"./images/tracking_annotation/gt_seq_9.txt", delimiter=",", skiprows=1)
+    guided_path_root = Path(f"./output/guid_out/C2C12_9_1")
+    gts = np.loadtxt(f"/home/kazuya/main/correlation_test/images/tracking_annotation/gt_sequ_9.txt", delimiter=",", skiprows=1)
     save_path_root = Path("./output/association/C2C12_9_1")
     num = 1
     time_lates = [1]

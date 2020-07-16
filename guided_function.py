@@ -28,6 +28,10 @@ class GuideCall(object):
         ori_paths = gather_path(input_path, "ori")
         if seq == 10:
             crop_init = (300, 160)
+        elif (seq== 6) or (seq == 15):
+            crop_init = (0, 0)
+        elif seq == 13:
+            crop_init = (528, 0)
         else:
             crop_init = (500, 300)
         data_loader = CellImageProp(ori_paths, time_late=time_late, crop=crop_init)
@@ -104,8 +108,8 @@ class GuideCall(object):
 
 if __name__ == "__main__":
     torch.cuda.set_device(0)
-    time_lates = [1, 5, 9]
-    seqs = [9]
+    time_lates = [9]
+    seqs = [18]
     for seq in seqs:
         for time_late in time_lates:
             net = UNet3(n_channels=1, n_classes=1, sig=False)
@@ -116,7 +120,7 @@ if __name__ == "__main__":
                 f"/home/kazuya/file_server2/CVPR_tracking/weight/C2C12_9_{time_late}/temp.pth"
             )
 
-            output_path = Path(f"./output/guid_out/{weight_path.parent.name}/sequ{seq}")
+            output_path = Path(f"./output/test/{weight_path.parent.name}/sequ{seq}")
 
             net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
             net.cuda()

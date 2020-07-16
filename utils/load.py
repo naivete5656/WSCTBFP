@@ -87,9 +87,9 @@ def load_img(img_name, img_name2, gt_name, gt_name2):
     img2 = cv2.imread(str(img_name2), -1)
     img2 = img2 / 4096
     gt = cv2.imread(str(gt_name), -1)
-    gt = gt / 4096
+    gt = gt / 255
     gt2 = cv2.imread(str(gt_name2), -1)
-    gt2 = gt2 / 4096
+    gt2 = gt2 / 255
     return img, img2, gt, gt2
 
 
@@ -161,9 +161,9 @@ class CellImageLoadTest(GT):
     def __init__(
             self, ori_path, gt_path, crop_size=(512, 512), time_late=1, bg_path=None, crop=(500, 300)
     ):
-        super().__init__(ori_path, gt_path, crop_size=(512, 512), time_late=1)
+        super().__init__(ori_path, gt_path, crop_size=(512, 512), time_late=time_late)
         self.bg_paths = bg_path
-        self.crop = (crop[0], crop[0] + 256, crop[1], crop[1] + 256)
+        self.crop = (crop[0], crop[0] + 512, crop[1], crop[1] + 512)
 
     def __getitem__(self, data_id):
         img_name = self.ori_paths[data_id]
