@@ -6,8 +6,6 @@ from pathlib import Path
 import torch
 from networks import UNet, UNet2, UNet3
 
-multiprocessing.set_start_method("spawn", True)
-
 
 def gather_path(paths, mode):
     ori_paths = []
@@ -16,9 +14,9 @@ def gather_path(paths, mode):
     return ori_paths
 
 
-class GuideCall(object):
+class Backwardprop(object):
     def __init__(
-            self, input_path, output_path, net, gpu=True, time_late=1, t_or_n=1, seq=None
+            self, input_path, output_path, net, gpu=True, time_late=1, t_or_n=1
     ):
         super().__init__()
         self.input_path = input_path
@@ -108,24 +106,22 @@ class GuideCall(object):
 
 if __name__ == "__main__":
     torch.cuda.set_device(0)
-    time_lates = [9]
-    seqs = [18]
-    for seq in seqs:
-        for time_late in time_lates:
-            net = UNet3(n_channels=1, n_classes=1, sig=False)
+    time_lates = [1, 5, 9]
+    for time_late in time_lates:
+        net = UNet3(n_channels=1, n_classes=1, sig=False)
 
-            input_path = [Path(f"/home/kazuya/main/correlation_test/images/sequ{seq}")]
+        input_path = [Path(f"/home/kazuya/main/ECCV/correlation_test/images/sequ9")]
 
-            weight_path = Path(
-                f"/home/kazuya/file_server2/CVPR_tracking/weight/C2C12_9_{time_late}/temp.pth"
-            )
+        weight_path = Path(
+            f"./weights/C2C12_9_{time_late}/best.pth"
+        )
 
-            output_path = Path(f"./output/test/{weight_path.parent.name}/sequ{seq}")
+        output_path = Path(f"./outputs/test/{weight_path.parent.name}/sequ9")
 
-            net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
-            net.cuda()
+        net.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
+        net.cuda()
 
-            bp = GuideCall(
-                input_path, output_path, net, time_late=time_late, t_or_n=1, seq=seq
-            )
-            bp.main()
+        bp = Backwardprop(
+            input_path, output_path, net, time_late=time_late, t_or_n=1
+        )
+        bp.main()

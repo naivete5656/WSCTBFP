@@ -1,4 +1,6 @@
 output/
+images/
+weights/
 
 .idea/
 
