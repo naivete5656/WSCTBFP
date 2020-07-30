@@ -44,7 +44,6 @@ class Backwardprop(object):
         self.net.eval()
         if self.gpu:
             self.net.cuda()
-        self.t_or_n = t_or_n
 
         self.back_model = GuidedModel(self.net)
         self.back_model.inference()
@@ -62,7 +61,7 @@ class Backwardprop(object):
             self.output_path_each.chmod(0o777)
 
             module = self.back_model
-            gbs = module(img, self.output_path_each, t_or_n=self.t_or_n)
+            gbs = module(img, self.output_path_each)
 
             gbs = np.array(gbs)
             gbs_coloring = self.coloring(gbs)

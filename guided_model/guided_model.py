@@ -30,12 +30,6 @@ class GuidedModel(nn.Sequential):
         self,
         img,
         root_path,
-        t_or_n=1,
-        peak=None,
-        class_threshold=0,
-        peak_threshold=30,
-        retrieval_cfg=None,
-        dataset=None,
     ):
         assert img.dim() == 4, "PeakResponseMapping layer only supports batch mode."
         if self.inferencing:
@@ -45,38 +39,22 @@ class GuidedModel(nn.Sequential):
         class_response_maps = super().forward(img)
 
         pre_img = (
-            class_response_maps[t_or_n].detach().clamp(min=0, max=1).cpu().numpy()[0, 0]
+            class_response_maps[1].detach().clamp(min=0, max=1).cpu().numpy()[0, 0]
         )
         self.shape = pre_img.shape
-        if peak is None:
-            cv2.imwrite(
-                str(root_path.joinpath("detection.tif")),
-                (pre_img * 255).astype(np.uint8),
-            )
+
+        cv2.imwrite(
+            str(root_path.joinpath("detection.tif")),
+            (pre_img * 255).astype(np.uint8),
+        )
         # peak
         peaks = local_maxim((pre_img * 255).astype(np.uint8), 125, 2).astype(np.int)
 
-        if dataset == "PhC-C2DL-PSC":
-            peaks = peaks[(peaks[:, 0] > 24) & (peaks[:, 0] < 744)]
-        # region = np.zeros(self.shape)
-        # for label, peak in enumerate(peaks):
-        #     region = cv2.circle(
-        #         region, (int(peak[0]), int(peak[1])), 18, label + 1, thickness=-1
-        #     )
-        gauses = []
-        try:
-            for peak in peaks:
-                temp = np.zeros(self.shape)
-                temp[peak[1], peak[0]] = 255
-                gauses.append(gaus_filter(temp, 401, 12))
-            region = np.argmax(gauses, axis=0) + 1
-            likely_map = np.max(gauses, axis=0)
-            region[likely_map < 0.05] = 0
-            #
-            # r, g, b = np.loadtxt("./utils/color.csv", delimiter=",")
-        except ValueError:
-            region = np.zeros(self.shape, dtype=np.uint8)
-            likely_map = np.zeros(self.shape)
+        region = np.zeros(self.shape)
+        for label, peak in enumerate(peaks):
+            region = cv2.circle(
+                region, (int(peak[0]), int(peak[1])), 18, label + 1, thickness=-1
+            )
 
         gbs = []
         # each propagate
@@ -86,7 +64,6 @@ class GuidedModel(nn.Sequential):
             for i in range(int(region.max() + 1)):
                 if img.grad is not None:
                     img.grad.zero_()
-                # f.write(f"{i},{peaks[i, 0]},{peaks[i ,1]}\n")
                 f.write("{},{},{}\n".format(i, peaks[i, 0], peaks[i, 1]))
                 mask = np.zeros((1, self.shape[0], self.shape[1]), dtype=np.float32)
                 mask[0][region == i] = 1
@@ -95,7 +72,7 @@ class GuidedModel(nn.Sequential):
                 mask = mask.cuda()
 
                 # class_response_maps[1].backward(mask, retain_graph=True)
-                class_response_maps[t_or_n].backward(mask, retain_graph=True)
+                class_response_maps[1].backward(mask, retain_graph=True)
                 result = img.grad.detach().clone().clamp(min=0).cpu().numpy()[0]
                 gbs.append(result)
         return gbs

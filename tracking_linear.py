@@ -166,7 +166,9 @@ def check_associate(gts, pred_tn, pred, frame, assoc_pred_path_root, img, img_tn
     gauses = []
     try:
         for peak in pred_tn:
-            temp = np.zeros((512,512))
+            temp = np.zeros((512, 512))
+            # temp = np.zeros((576, 768))
+            
             temp[int(peak[1]), int(peak[0])] = 255
             gauses.append(gaus_filter(temp, 401, 12))
         region = np.argmax(gauses, axis=0) + 1
@@ -347,15 +349,19 @@ dis_th = {1: 20, 5: 40, 9: 60}
 if __name__ == "__main__":
     mode = ""
     for time_late in [9]:
-        for seq in [6]:
+        for seq in [15]:
             ori_path_root = Path(f"./output/detection/C2C12_9_{time_late}/sequ{seq}")
+            # ori_path_root = Path(f"/home/kazuya/main/ECCV/correlation_test/output/detection/PhC-C2DL-PSC/1_1")
             assoc_pred_path_root = Path(f"./output/detection/C2C12_9_{time_late}_mask/sequ{seq}")
+            # assoc_pred_path_root = Path(f"/home/kazuya/main/ECCV/correlation_test/output/detection/PhC-C2DL-PSC_mask2/1_1")
             guided_path_root = Path(f"./output/guid_out/C2C12_9_{time_late}/sequ{seq}")
-            gts = np.loadtxt(f"/home/kazuya/main/correlation_test/images/tracking_annotation/gt_seq_{seq}.txt",
+            # guided_path_root = Path(f"/home/kazuya/main/ECCV/correlation_test/output/guid_out/PhC-C2DL-PSC/1_1")
+            # gts = np.loadtxt(f"/home/kazuya/main/ECCV/celltrackingchallenge_dataset/PhC-C2DL-PSC/PhC-PSC_association_gt.txt",
+            gts = np.loadtxt(f"/home/kazuya/main/ECCV/correlation_test/images/tracking_annotation/gt_seq_{seq}.txt",
                              delimiter=",",
                              skiprows=1)
             # save_path_root = Path(f"./output/association{mode}/C2C12_9_{time_late}/sequ{seq}")
-            save_path_root = Path(f"./output/for_vis/C2C12_9_{time_late}/sequ{seq}")
+            save_path_root = Path(f"./output/for_vis/Phc_{time_late}/sequ{seq}")
             if save_path_root.is_dir():
                 shutil.rmtree(save_path_root)
 

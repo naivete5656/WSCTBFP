@@ -1,9 +1,71 @@
 import torch.utils.data
 from utils import *
 from torch import optim
+import torch.nn as nn
 from eval import eval_net
 from tqdm import tqdm
-from networks import *
+from networks import CoDetectionCNN
+
+import argparse
+
+
+def parse_args():
+    """
+  Parse input arguments
+  """
+    parser = argparse.ArgumentParser(description="Train data path")
+    parser.add_argument(
+        "-t",
+        "--train_path",
+        dest="train_path",
+        help="training dataset's path",
+        # default="./image/train",
+        default="./images/sequ11",
+        type=str,
+    )
+    parser.add_argument(
+        "-v",
+        "--val_path",
+        dest="val_path",
+        help="validation data path",
+        # default="./image/val",
+        default="./images/sequ12",
+        type=str,
+    )
+    parser.add_argument(
+        "-w",
+        "--weight_path",
+        dest="weight_path",
+        help="save weight path",
+        default="./weight/best.pth",
+    )
+    parser.add_argument(
+        "-g", "--gpu", dest="gpu", help="whether use CUDA", action="store_true"
+    )
+    parser.add_argument(
+        "-b", "--batch_size", dest="batch_size", help="batch_size", default=16, type=int
+    )
+    parser.add_argument(
+        "-e", "--epochs", dest="epochs", help="epochs", default=500, type=int
+    )
+    parser.add_argument(
+        "-l",
+        "--learning_rate",
+        dest="learning_rate",
+        help="learning late",
+        default=1e-3,
+        type=float,
+    )
+    parser.add_argument(
+        "--vis",
+        dest="visdom",
+        help="learning late",
+        default=True,
+        type=bool,
+    )
+
+    args = parser.parse_args()
+    return args
 
 
 class _TrainBase(Visdom):
@@ -215,18 +277,17 @@ class TrainNet(_TrainBase):
         self.epoch_loss = 0
 
 
-sequence_list = [2, 9, 17, 18]
 if __name__ == "__main__":
-    for time_late in [1, 5, 9]:
-        torch.cuda.set_device(0)
-        plot_size = 9
-        train_paths = [Path(f"/home/kazuya/main/ECCV/correlation_test/images/sequ9")]
-        val_paths = [Path(f"/home/kazuya/main/ECCV/correlation_test/images/sequ16")]
+    args = parse_args()
 
-        net = UNet3(n_channels=1, n_classes=1, sig=False)
+    for time_late in [1, 5, 9]:
+        train_paths = [Path(args.train_path)]
+        val_paths = [Path(args.val_path)]
+
+        net = CoDetectionCNN(n_channels=1, n_classes=1, sig=False)
         net.cuda()
 
-        save_weights_path = Path(f"./weights/C2C12_9_{time_late}/best.pth")
+        save_weights_path = Path(args.weight_path)
         save_weights_path.parent.joinpath("epoch_weight").mkdir(
             parents=True, exist_ok=True
         )
@@ -234,16 +295,15 @@ if __name__ == "__main__":
         save_weights_path.parent.chmod(0o777)
 
         args = {
-            "gpu": True,
-            "batch_size": 8,
-            "epochs": 1500,
-            "lr": 1e-3,
+            "gpu": args.gpu,
+            "batch_size": args.batch_size,
+            "epochs": args.epochs,
+            "lr": args.learning_rate,
             "train_paths": train_paths,
             "val_paths": val_paths,
             "save_weight_path": save_weights_path,
             "net": net,
-            "vis": True,
-            "plot_size": plot_size,
+            "vis": args.vis,
             "criterion": nn.MSELoss(),
             "vis_env": net.__class__.__name__,
             "time_late": time_late,
