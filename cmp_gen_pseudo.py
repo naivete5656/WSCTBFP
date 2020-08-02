@@ -1,5 +1,5 @@
 """
-出力はNPY形式
+outpu by npy
 """
 import xml.etree.ElementTree as ET
 import cv2
@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 
-# 各座標のベクトル本数とベクトルを返す
+# return number of vectors
 def compute_vector(
         black, pre, nxt, result, result_l, result_y, result_x, result_z, ks, zv, sgm
 ):
@@ -49,7 +49,7 @@ def compute_vector(
     return result, result_l, result_y, result_x, result_z
 
 
-# F0009のfpsごとの移動平均&標準偏差(多分)
+# migration mean
 movement = [
     [1.4434, 1.3197942503607587],
     [2.7377, 2.195258089759622],
@@ -73,9 +73,9 @@ movement = [
 ]
 
 ###############hyperparameter##################
-KS = 50  # カーネルサイズ
-SGM = 6  # シグマ
-Z_VALUE = 5  # 時間軸の縮尺
+KS = 50  # kernel size
+SGM = 6  # sigma
+Z_VALUE = 5  # temporal axis
 
 
 def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
@@ -83,14 +83,11 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
     frames = np.unique(track_let[:, 0])
     ids = np.unique(track_let[:, 1])
 
-    # いろいろ使う黒画像(0行列)
     black = np.zeros((height + KS * 2, width + KS * 2))
     ones = np.ones((height + KS * 2, width + KS * 2))
 
     par_id = -1
     i = 1
-    # resultは各座標に何本ベクトルがあるか(かぶっていたら2とか3とか)
-    # result_y,result_x,result_z は出力ベクトル
 
     result = ones.copy()
     result_lm = black.copy()
@@ -99,7 +96,6 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
     result_z = black.copy()
 
     for j in ids:
-        # i+1のフレーム
         index_check = len(track_let[(track_let[:, 0] == i) & (track_let[:, 1] == j)])
         index_chnxt = len(
             track_let[(track_let[:, 0] == i + itv) & (track_let[:, 1] == j)]
@@ -109,7 +105,6 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
                 0, -1
             ]
 
-        # 前後のframeがあるとき(dataはframe(t)の座標、dnxtはframe(t+1)の座標)
         if (index_check != 0) & (index_chnxt != 0):
             data = track_let[(track_let[:, 0] == i) & (track_let[:, 1] == j)][0][2:-1]
             dnxt = track_let[(track_let[:, 0] == i + itv) & (track_let[:, 1] == j)][0][
@@ -130,9 +125,7 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
                 SGM,
             )
 
-        # 前は無いが、親がいるとき
         elif (index_check == 0) & (index_chnxt != 0) & (par_id != -1):
-            # 親細胞のframe(t)座標
             if (
                     len(track_let[(track_let[:, 0] == i) & (track_let[:, 1] == par_id)])
                     != 0
@@ -161,13 +154,9 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
                     track_let[(track_let[:, 0] == i + itv) & (track_let[:, 1] == j)][0]
                 )
 
-    # パディングを消す
     result = result[KS:-KS, KS:-KS]
     print(i + 1, "to", i + itv + 1, result.max())
 
-    # 0で割れないので1に
-    # result_org = result.copy()
-    # パディングを消す
     result_y = result_y[KS:-KS, KS:-KS]
     result_x = result_x[KS:-KS, KS:-KS]
     result_z = result_z[KS:-KS, KS:-KS]
@@ -190,80 +179,67 @@ def generate_flow(track_let, save_path, itv=1, height=1040, width=1392):
 
 
 if __name__ == "__main__":
-    time_lates = [1, 5, 9]
-    mode = "_new"
+    for time_late in [1, 5, 9]:
+        save_CMP_path = Path(f"/home/kazuya/main/WSCTBFP/data/cmp/{time_late}")
+        save_CMP_path.mkdir(parents=True, exist_ok=True)
 
-    for time_late in time_lates:
-        for seq in [11, 12, 13, 2, 6, 15]:
-            save_CMP_path = Path(f"/home/kazuya/main/weakly_tracking/images/sequ{seq}/CMP_6{mode}_{time_late}")
-            save_CMP_path.mkdir(parents=True, exist_ok=True)
+        save_mask_path = save_CMP_path.parent.joinpath(f"mask_{time_late}")
+        save_mask_path.mkdir(parents=True, exist_ok=True)
 
-            save_mask_path = save_CMP_path.parent.joinpath(f"mask{mode}_{time_late}")
-            save_mask_path.mkdir(parents=True, exist_ok=True)
+        root_path = Path(f"./output/association/{time_late}")
 
-            root_path = Path(f"../output/association_wo_reject/C2C12_9_{time_late}/sequ{seq}")
+        pred1_paths = sorted(root_path.glob("*/*_1.txt"))
+        pred2_paths = sorted(root_path.glob("*/*_2.txt"))
 
-            pred1_paths = sorted(root_path.glob("*/*_1.txt"))
-            pred2_paths = sorted(root_path.glob("*/*_2.txt"))
+        for frame, pred_path in enumerate(zip(pred1_paths, pred2_paths)):
+            # [x, y, cell_id, state]
+            pred1 = np.loadtxt(str(pred_path[0]), delimiter=",", skiprows=1)
+            # [x, y, cell_id, state]
+            pred2 = np.loadtxt(str(pred_path[1]), delimiter=",", skiprows=1)
 
-            for frame, pred_path in enumerate(zip(pred1_paths, pred2_paths)):
-                # [x, y, cell_id, state]
-                pred1 = np.loadtxt(str(pred_path[0]), delimiter=",", skiprows=1)
-                # [x, y, cell_id, state]
-                pred2 = np.loadtxt(str(pred_path[1]), delimiter=",", skiprows=1)
-
-                exclude_cells = pred1[(pred1[:, 3] == 2) | (pred1[:, 3] == 0)]
-                mask = np.zeros((512, 512))
-                # for exclude_cell in exclude_cells:
-                #     mask = cv2.circle(
-                #         mask,
-                #         (int(exclude_cell[0]), int(exclude_cell[1])),
-                #         SGM * 3,
-                #         255,
-                #         -1,
-                #     )
-                # exclude_cells = pred2[(pred2[:, 3] == 2) | (pred2[:, 3] == 0)]
-                # for exclude_cell in exclude_cells:
-                #     mask = cv2.circle(
-                #         mask,
-                #         (int(exclude_cell[0]), int(exclude_cell[1])),
-                #         SGM * 3,
-                #         255,
-                #         -1,
-                #     )
-                cv2.imwrite(
-                    str(save_mask_path.joinpath(f"{frame:05d}.tif")),
-                    mask.astype(np.uint8),
+            mask = np.zeros((320, 320))
+            exclude_cells = pred1[(pred1[:, 3] == 2) | (pred1[:, 3] == 0)]
+            for exclude_cell in exclude_cells:
+                mask = cv2.circle(
+                    mask,
+                    (int(exclude_cell[0]), int(exclude_cell[1])),
+                    SGM * 3,
+                    255,
+                    -1,
                 )
+            cv2.imwrite(
+                str(save_mask_path.joinpath(f"{frame:05d}.tif")),
+                mask.astype(np.uint8),
+            )
 
-                pred1_new = pred1.copy()
-                pred2_new = pred2.copy()
+            pred1_new = pred1.copy()
+            pred2_new = pred2.copy()
 
-                cell_id = 1
-                for index, pre in enumerate(pred1):
-                    if pre[3] == 1:
-                        pred1_new[index][2] = cell_id
-                        pred2_new[int(pre[2])][2] = cell_id
-                        cell_id += 1
+            cell_id = 1
+            for index, pre in enumerate(pred1):
+                if pre[3] == 1:
+                    pred1_new[index][2] = cell_id
+                    pred2_new[int(pre[2])][2] = cell_id
+                    cell_id += 1
 
-                pred1 = pred1_new
-                pred2 = pred2_new
-                pred1 = pred1[pred1[:, 3] == 1]
-                pred2 = pred2[pred2[:, 3] == 1]
+            pred1 = pred1_new
+            pred2 = pred2_new
+            pred1 = pred1[pred1[:, 3] == 1]
+            pred2 = pred2[pred2[:, 3] == 1]
 
-                track_let = np.zeros(((pred1.shape[0] + pred2.shape[0], 5)))
-                track_let[:pred1.shape[0], 0] = 1
-                track_let[pred1.shape[0]:, 0] = 2
-                track_let[:pred1.shape[0], 2:4] = pred1[:, :2]
-                track_let[pred1.shape[0]:, 2:4] = pred2[:, :2]
-                track_let[:pred1.shape[0], 1] = pred1[:, 2]
-                track_let[pred1.shape[0]:, 1] = pred2[:, 2]
+            track_let = np.zeros(((pred1.shape[0] + pred2.shape[0], 5)))
+            track_let[:pred1.shape[0], 0] = 1
+            track_let[pred1.shape[0]:, 0] = 2
+            track_let[:pred1.shape[0], 2:4] = pred1[:, :2]
+            track_let[pred1.shape[0]:, 2:4] = pred2[:, :2]
+            track_let[:pred1.shape[0], 1] = pred1[:, 2]
+            track_let[pred1.shape[0]:, 1] = pred2[:, 2]
 
-                generate_flow(
-                    track_let,
-                    save_CMP_path.joinpath(f"{frame:05d}.npy"),
-                    height=512,
-                    width=512,
-                )
+            generate_flow(
+                track_let,
+                save_CMP_path.joinpath(f"{frame:05d}.npy"),
+                height=320,
+                width=320,
+            )
 
-                print("finished")
+            print("finished")

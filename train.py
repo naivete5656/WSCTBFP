@@ -5,7 +5,6 @@ import torch.nn as nn
 from eval import eval_net
 from tqdm import tqdm
 from networks import CoDetectionCNN
-
 import argparse
 
 
@@ -19,8 +18,7 @@ def parse_args():
         "--train_path",
         dest="train_path",
         help="training dataset's path",
-        # default="./image/train",
-        default="./images/sequ11",
+        default="./data/train",
         type=str,
     )
     parser.add_argument(
@@ -28,8 +26,7 @@ def parse_args():
         "--val_path",
         dest="val_path",
         help="validation data path",
-        # default="./image/val",
-        default="./images/sequ12",
+        default="./data/val",
         type=str,
     )
     parser.add_argument(
@@ -37,10 +34,10 @@ def parse_args():
         "--weight_path",
         dest="weight_path",
         help="save weight path",
-        default="./weight/best.pth",
+        default="./weight",
     )
     parser.add_argument(
-        "-g", "--gpu", dest="gpu", help="whether use CUDA", action="store_true"
+        "-g", "--gpu", dest="gpu", help="whether use CUDA", default=True, type=bool,
     )
     parser.add_argument(
         "-b", "--batch_size", dest="batch_size", help="batch_size", default=16, type=int
@@ -58,8 +55,8 @@ def parse_args():
     )
     parser.add_argument(
         "--vis",
-        dest="visdom",
-        help="learning late",
+        dest="vis",
+        help="visdom",
         default=True,
         type=bool,
     )
@@ -75,10 +72,12 @@ class _TrainBase(Visdom):
         self.net = kwargs["net"]
         self.gpu = kwargs["gpu"]
         self.need_vis = kwargs["vis"]
+        if self.need_vis:
+            self.vis_env = kwargs["vis_env"]
+
         self.batch_size = kwargs["batch_size"]
-        self.plot_size = kwargs["plot_size"]
-        ori_paths = self.gather_path(kwargs["train_paths"], "ori")
-        gt_paths = self.gather_path(kwargs["train_paths"], "9")
+        ori_paths = self.gather_path(kwargs["train_paths"], "img")
+        gt_paths = self.gather_path(kwargs["train_paths"], "like")
 
         data_loader = CellImageLoad(
             ori_paths, gt_paths, time_late=kwargs["time_late"]
@@ -88,8 +87,8 @@ class _TrainBase(Visdom):
         )
         self.number_of_traindata = data_loader.__len__()
         if kwargs["val_paths"] is not None:
-            ori_paths = self.gather_path(kwargs["val_paths"], "ori")
-            gt_paths = self.gather_path(kwargs["val_paths"], "9")
+            ori_paths = self.gather_path(kwargs["val_paths"], "img")
+            gt_paths = self.gather_path(kwargs["val_paths"], "like")
             data_loader = CellImageLoad(
                 ori_paths, gt_paths, time_late=kwargs["time_late"]
             )
@@ -106,7 +105,6 @@ class _TrainBase(Visdom):
         self.optimizer = optim.Adam(self.net.parameters(), lr=kwargs["lr"])
         self.iteration = 0
         self.decay = 0.1
-        self.vis_env = kwargs["vis_env"]
         # loss counters
         self.loc_loss = 0
         self.conf_loss = 0
@@ -115,13 +113,6 @@ class _TrainBase(Visdom):
         self.losses = []
         self.evals = []
         self.val_losses = []
-
-    def gather_path(self, train_paths, mode):
-        ori_path = []
-        for train_path in train_paths:
-            ori_path.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
-
-        return ori_path
 
     def loss_function(self, loss_type):
         if isinstance(loss_type, nn.MSELoss):
@@ -155,11 +146,11 @@ class TrainNet(_TrainBase):
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+
                 if self.need_vis:
                     self.update_vis_plot(
                         iteration, [loss.item()], self.iter_plot, None, "append"
                     )
-                if self.need_vis:
                     self.update_vis_show(img[:, :1, :, :].cpu(), self.ori_view)
                     self.update_vis_show(img[:, 1:, :, :].cpu(), self.ori_view2)
 
@@ -174,36 +165,28 @@ class TrainNet(_TrainBase):
                     self.update_vis_show(target[:, :1, :, :].cpu(), self.gt_view)
                     self.update_vis_show(target[:, 1:, :, :].cpu(), self.gt_view2)
 
-                    self.iteration += 1
+                self.iteration += 1
 
-                    if self.iteration % 10000 == 0:
-                        torch.save(
-                            self.net.state_dict(),
-                            str(
-                                self.save_weight_path.parent.joinpath(
-                                    "epoch_weight/{:05d}.pth".format(epoch)
-                                )
-                            ),
-                        )
+                if self.iteration % 10000 == 0:
+                    torch.save(
+                        self.net.state_dict(),
+                        str(
+                            self.save_weight_path.parent.joinpath(
+                                "epoch_weight/{:05d}.pth".format(epoch)
+                            )
+                        ),
+                    )
 
-                        for param_group in self.optimizer.param_groups:
-                            param_group["lr"] = self.decay * param_group["lr"]
-                    if self.iteration >= 40000:
-                        torch.save(
-                            self.net.state_dict(),
-                            str(
-                                self.save_weight_path.parent.joinpath(
-                                    "temp.pth".format(epoch)
-                                )
-                            ),
-                        )
-                        print("stop running")
-                        break
+                    for param_group in self.optimizer.param_groups:
+                        param_group["lr"] = self.decay * param_group["lr"]
                 pbar.update(self.batch_size)
             pbar.close()
 
             if self.val_loader is not None:
                 self.validation(iteration, epoch)
+                if self.bad >= 100:
+                    print("stop running")
+                    break
             else:
                 torch.save(
                     self.net.state_dict(),
@@ -220,10 +203,6 @@ class TrainNet(_TrainBase):
                             )
                         ),
                     )
-
-            if self.bad >= 100:
-                print("stop running")
-                break
 
     def validation(self, number_of_train_data, epoch):
         loss = self.epoch_loss / (number_of_train_data + 1)
@@ -287,14 +266,13 @@ if __name__ == "__main__":
         net = CoDetectionCNN(n_channels=1, n_classes=1, sig=False)
         net.cuda()
 
-        save_weights_path = Path(args.weight_path)
+        save_weights_path = Path(args.weight_path).joinpath(f"{time_late}/best.pth")
         save_weights_path.parent.joinpath("epoch_weight").mkdir(
             parents=True, exist_ok=True
         )
         save_weights_path.parent.mkdir(parents=True, exist_ok=True)
-        save_weights_path.parent.chmod(0o777)
 
-        args = {
+        args_list = {
             "gpu": args.gpu,
             "batch_size": args.batch_size,
             "epochs": args.epochs,
@@ -309,5 +287,5 @@ if __name__ == "__main__":
             "time_late": time_late,
         }
 
-        train = TrainNet(**args)
+        train = TrainNet(**args_list)
         train.main()

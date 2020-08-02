@@ -1,0 +1,6 @@
+name: WSCT
+channels:
+  - defaults
+  - conda-forge
+prefix: /home/kazuya/anaconda3/envs/WSCT
+

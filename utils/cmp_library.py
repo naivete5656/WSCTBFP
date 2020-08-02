@@ -1,17 +1,13 @@
-"""
-可視化に関するあれこれをまとめたもの
-入力は8bit画像を想定
-出力は基本カラー画像(3ch)
-"""
+
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
 
 def get3chImage(src):
-    """画像を3chにする関数
+    """gray2color
     Args:
-        src: 入力画像
+        src: image
     """
     chk = src.shape
     if len(chk) == 2:
@@ -27,11 +23,6 @@ def get3chImage(src):
 
 
 def getSyntheticImage(src1, rate1, src2, rate2, save_name=None):
-    """2枚の画像を合成する関数
-    Args:
-        src1, src2: 合成する2枚の画像
-        rate1, rate2: どのくらいの割合か(rate1+rate2が1を超えてもOK)
-    """
     src1 = get3chImage(src1)
     src2 = get3chImage(src2)
     out = src1 * rate1 + src2 * rate2
@@ -44,12 +35,6 @@ def getSyntheticImage(src1, rate1, src2, rate2, save_name=None):
 
 
 def getImageTable(srcs=[], clm=4, save_name=None):
-    """与えられた画像群を指定した列数で並べる関数
-    Args:
-        srcs: 画像のリスト
-        clm: 何列で並べるか
-        save_name: 入力したらその名前で保存， Noneなら出力
-    """
     white_c = np.full((srcs[0].shape[0], 3, 3), 255).astype("uint8")
     white_r = np.full((3, (srcs[0].shape[1] + 3) * clm - 3, 3), 255).astype("uint8")
     black = np.zeros(srcs[0].shape).astype("uint8")

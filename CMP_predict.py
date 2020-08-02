@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import cv2
-from networks import UNet_2d
+from networks import UNet
 import matplotlib.pyplot as plt
 from utils import (
     chw_to_hwc,

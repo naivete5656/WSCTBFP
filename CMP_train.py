@@ -20,18 +20,10 @@ class _TrainBase(Visdom):
         self.gpu = kwargs["gpu"]
         self.need_vis = kwargs["vis"]
         self.batch_size = kwargs["batch_size"]
-        self.plot_size = kwargs["plot_size"]
-        seq = kwargs["seq"]
 
-        ori_paths = self.gather_path_ori(kwargs["train_paths"], "ori")
-        if seq == 10:
-            crop = (300, 160)
-        elif DATASET == "Elmer":
-            crop = (0, 0)
-        else:
-            crop = (500, 300)
+        ori_paths = self.gather_path_ori(kwargs["train_paths"], "img")
 
-        data_loader = CMPLoad(ori_paths, crop=crop, mode=kwargs["mode"], mask_rad=kwargs["mask_rad"])
+        data_loader = CMPLoad(ori_paths)
         self.train_dataset_loader = torch.utils.data.DataLoader(
             data_loader, batch_size=kwargs["batch_size"], shuffle=True, num_workers=0
         )
@@ -56,30 +48,14 @@ class _TrainBase(Visdom):
         ori_paths = np.zeros((0, 2))
         for train_path in train_paths:
             ori_path = []
-            ori_path.extend(sorted(train_path.joinpath(mode).glob("*.tif"))[:100])
+            ori_path.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
             ori_path = np.array(ori_path)
 
-            time_late1 = ori_path.copy().reshape(-1, 1)
-            time_late1 = np.append(
-                time_late1, np.ones((time_late1.shape[0], 1)), axis=1
-            )
-            time_late1 = time_late1[:-1]
-
-            time_late5 = ori_path.copy().reshape(-1, 1)
-            time_late5 = np.append(
-                time_late5, np.full((time_late5.shape[0], 1), 5), axis=1
-            )
-            time_late5 = time_late5[:-5]
-
-            time_late9 = ori_path.copy().reshape(-1, 1)
-            time_late9 = np.append(
-                time_late9, np.full((time_late9.shape[0], 1), 9), axis=1
-            )
-            time_late9 = time_late9[:-9]
-
-            time_late5 = np.append(time_late1, time_late5, axis=0)
-            time_late9 = np.append(time_late5, time_late9, axis=0)
-            ori_paths = np.append(ori_paths, time_late9, axis=0)
+            for time_late in [1, 5, 9]:
+                temp_paths = ori_path.copy().reshape(-1, 1)
+                temp_paths = np.append(temp_paths, np.full((temp_paths.shape[0], 1), time_late), axis=1)
+                temp_paths = temp_paths[:-time_late]
+                ori_paths = np.append(ori_paths, temp_paths, axis=0)
         return ori_paths
 
     def gather_path_gt(self, train_paths, mode):
@@ -87,18 +63,14 @@ class _TrainBase(Visdom):
         for train_path in train_paths:
             ori_path = []
             if "sequ9" in train_path.name:
-                ori_path.extend(sorted(train_path.joinpath(mode).glob("*.tif"))[-100:])
+                ori_path.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
             else:
                 ori_path.extend(sorted(train_path.joinpath(mode).glob("*.tif")))
             ori_path = np.array(ori_path)
             time_late1 = ori_path.copy()[:-1]
-            # time_late3 = ori_path.copy()[:-3]
             time_late5 = ori_path.copy()[:-5]
-            # time_late7 = ori_path.copy()[:-7]
             time_late9 = ori_path.copy()[:-9]
 
-            # time_late3 = np.append(time_late1, time_late3, axis=0)
-            # time_late7 = np.append(time_late5, time_late7, axis=0)
             time_late7 = np.append(time_late1, time_late5, axis=0)
             time_late9 = np.append(time_late7, time_late9, axis=0)
             ori_paths = np.append(ori_paths, time_late9, axis=0)
@@ -178,25 +150,15 @@ class TrainNet(_TrainBase):
 
 
 if __name__ == "__main__":
-    torch.cuda.set_device(1)
-    plot_size = 6
-    # mode = "_wo_reject"
-    mode = "_reject"
-    seqs = [11, 12, 13, 2, 6, 15]
-    seq = 13
-    mask_rad = ""
 
-    train_paths = [Path(f"./images/sequ{seq}")]
+    train_paths = [Path(f"./data")]
 
-    val_paths = None  # [Path("./images/sequ17")]
-
-    net = UNet_2d(n_channels=2, n_classes=3, sig=False)
+    net = UNet(n_channels=2, n_classes=3, sig=False)
     net.cuda()
-    save_weights_path = Path(f"./weights/CMP6_sequ{seq}{mode}/best.pth")
+    save_weights_path = Path(f"./weights/CMP/best.pth")
 
     save_weights_path.parent.joinpath("epoch_weight").mkdir(parents=True, exist_ok=True)
     save_weights_path.parent.mkdir(parents=True, exist_ok=True)
-    save_weights_path.parent.chmod(0o777)
 
     args = {
         "gpu": True,
@@ -204,17 +166,12 @@ if __name__ == "__main__":
         "epochs": 1000,
         "lr": 1e-3,
         "train_paths": train_paths,
-        "val_paths": val_paths,
         "save_weight_path": save_weights_path,
         "net": net,
         "vis": True,
-        "plot_size": plot_size,
         "criterion": RMSE_Q_NormLoss(),
         # "criterion": IgnoreMSELoss(),
-        "vis_env": "CMP_sequ11",
-        "seq": seq,
-        "mode": mode,
-        "mask_rad": mask_rad,
+        "vis_env": "2",
     }
 
     train = TrainNet(**args)

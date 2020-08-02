@@ -118,7 +118,7 @@ def show_res(img, gt, res, no_detected_id, over_detection_id, path=None):
     plt.close()
 
 
-def local_maxim(img, threshold, dist):
+def local_maxima(img, threshold, dist):
     data = np.zeros((0, 2))
     x = peak_local_max(img, threshold_abs=threshold, min_distance=dist)
     peak_img = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
@@ -223,3 +223,10 @@ def associate(plot_size, gts, expert, df):
         # 対応付けされたID
         df.loc[gt[associate_id[:, 0]][:, 2], expert] = 1
     return df
+
+
+def gather_path(paths, mode):
+    ori_paths = []
+    for path in paths:
+        ori_paths.extend(sorted(path.joinpath(mode).glob("*.tif")))
+    return ori_paths

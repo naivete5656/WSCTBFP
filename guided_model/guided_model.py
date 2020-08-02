@@ -4,7 +4,7 @@ from .guided_parts import guide_relu
 from scipy.io import savemat
 import numpy as np
 import cv2
-from utils import local_maxim, gaus_filter
+from utils import local_maxima, gaus_filter
 import torch
 import matplotlib.pyplot as plt
 
@@ -48,7 +48,7 @@ class GuidedModel(nn.Sequential):
             (pre_img * 255).astype(np.uint8),
         )
         # peak
-        peaks = local_maxim((pre_img * 255).astype(np.uint8), 125, 2).astype(np.int)
+        peaks = local_maxima((pre_img * 255).astype(np.uint8), 125, 2).astype(np.int)
 
         region = np.zeros(self.shape)
         for label, peak in enumerate(peaks):
